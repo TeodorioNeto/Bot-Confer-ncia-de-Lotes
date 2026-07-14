@@ -1,8 +1,6 @@
 import logging
 from pathlib import Path
-import unicodedata
 
-from openpyxl import load_workbook
 import pandas as pd
 
 
@@ -18,10 +16,6 @@ COLUNAS_ESTRUTURA = [
 ]
 
 COLUNAS_OBRIGATORIAS = COLUNAS_ESTRUTURA[:-1]
-
-ABA_FORMULARIO_ANALISE = "Formulario_Analise"
-TIPO_ERRO_RN02 = "Dados Obrigatorios Ausentes"
-ACAO_RECOMENDADA_RN02 = "Preencher campos obrigatorios"
 
 
 def carregar_planilha(caminho_arquivo):
@@ -116,48 +110,6 @@ def valida_campos_obrigatorios(caminho_arquivo="dados.xlsx"):
     return valido
 
 
-def registrar_erros_rn02(caminho_arquivo="dados.xlsx"):
-    df = carregar_planilha(caminho_arquivo)
-    erros = encontrar_erros_rn02(df)
-
-    if not erros:
-        return []
-
-    workbook = load_workbook(caminho_arquivo)
-
-    if ABA_FORMULARIO_ANALISE not in workbook.sheetnames:
-        worksheet = workbook.create_sheet(ABA_FORMULARIO_ANALISE)
-        criar_cabecalho_formulario(worksheet)
-    else:
-        worksheet = workbook[ABA_FORMULARIO_ANALISE]
-
-    linha_cabecalho = encontrar_linha_cabecalho_formulario(worksheet)
-
-    if linha_cabecalho is None:
-        linha_cabecalho = worksheet.max_row + 1
-        criar_cabecalho_formulario(worksheet, linha_cabecalho)
-
-    colunas = mapear_colunas_formulario(worksheet, linha_cabecalho)
-    linhas_existentes = mapear_linhas_rn02_existentes(worksheet, linha_cabecalho, colunas)
-    proxima_linha = encontrar_proxima_linha_vazia(worksheet, linha_cabecalho)
-
-    for erro in erros:
-        linha_registro = linhas_existentes.get(erro["linha"], proxima_linha)
-        worksheet.cell(linha_registro, colunas["linha"]).value = erro["linha"]
-        worksheet.cell(linha_registro, colunas["lote_id"]).value = erro["lote_id"]
-        worksheet.cell(linha_registro, colunas["tipo"]).value = TIPO_ERRO_RN02
-        worksheet.cell(linha_registro, colunas["regra"]).value = "RN02"
-        worksheet.cell(linha_registro, colunas["acao"]).value = (
-            f"{ACAO_RECOMENDADA_RN02}: {', '.join(erro['campos'])}"
-        )
-
-        if linha_registro == proxima_linha:
-            proxima_linha += 1
-
-    workbook.save(caminho_arquivo)
-    return erros
-
-
 def encontrar_erros_rn02(df):
     erros = []
 
@@ -180,99 +132,6 @@ def encontrar_erros_rn02(df):
             )
 
     return erros
-
-
-def criar_cabecalho_formulario(worksheet, linha=1):
-    cabecalhos = [
-        "Linha",
-        "lote_id",
-        "Tipo de divergencia encontrada",
-        "Regra(s) violada(s)",
-        "Acao recomendada",
-        "Confirmado no gabarito?",
-    ]
-
-    for coluna, cabecalho in enumerate(cabecalhos, start=1):
-        worksheet.cell(linha, coluna).value = cabecalho
-
-
-def encontrar_linha_cabecalho_formulario(worksheet):
-    campos_necessarios = {"linha", "lote_id", "tipo", "regra", "acao"}
-
-    for linha in range(1, worksheet.max_row + 1):
-        valores = {
-            classificar_coluna_formulario(worksheet.cell(linha, coluna).value)
-            for coluna in range(1, worksheet.max_column + 1)
-        }
-
-        if campos_necessarios.issubset(valores):
-            return linha
-
-    return None
-
-
-def mapear_colunas_formulario(worksheet, linha_cabecalho):
-    colunas = {}
-
-    for coluna in range(1, worksheet.max_column + 1):
-        tipo = classificar_coluna_formulario(worksheet.cell(linha_cabecalho, coluna).value)
-
-        if tipo:
-            colunas[tipo] = coluna
-
-    return colunas
-
-
-def classificar_coluna_formulario(valor):
-    texto = normalizar_texto(valor)
-
-    if texto == "linha":
-        return "linha"
-
-    if texto == "lote_id":
-        return "lote_id"
-
-    if "tipo de divergencia" in texto:
-        return "tipo"
-
-    if "regra" in texto and "violada" in texto:
-        return "regra"
-
-    if "acao recomendada" in texto:
-        return "acao"
-
-    return None
-
-
-def encontrar_proxima_linha_vazia(worksheet, linha_cabecalho):
-    return worksheet.max_row + 1
-
-
-def mapear_linhas_rn02_existentes(worksheet, linha_cabecalho, colunas):
-    linhas = {}
-
-    for linha in range(linha_cabecalho + 1, worksheet.max_row + 1):
-        valor_linha = worksheet.cell(linha, colunas["linha"]).value
-        valor_regra = worksheet.cell(linha, colunas["regra"]).value
-
-        if "rn02" not in normalizar_texto(valor_regra):
-            continue
-
-        try:
-            linhas[int(valor_linha)] = linha
-        except (TypeError, ValueError):
-            continue
-
-    return linhas
-
-
-def normalizar_texto(valor):
-    if valor is None:
-        return ""
-
-    texto = str(valor).strip().lower()
-    texto = unicodedata.normalize("NFKD", texto)
-    return "".join(caractere for caractere in texto if not unicodedata.combining(caractere))
 
 
 def obter_colunas_faltantes(df):

@@ -6,7 +6,6 @@ Automacao didatica para validar planilhas `.xlsx` de inspecao de lotes conforme 
 
 - RN01: valida se a planilha possui exatamente as 8 colunas do layout: `lote_id`, `produto`, `linha`, `turno`, `status`, `responsavel`, `data`, `observacao`.
 - RN02: valida campos obrigatorios em cada registro: `lote_id`, `produto`, `linha`, `turno`, `status`, `responsavel`, `data`.
-- RN02: registra divergencias na aba `Formulario_Analise`, informando linha, `lote_id`, regra violada e acao recomendada.
 
 ## Instalacao
 

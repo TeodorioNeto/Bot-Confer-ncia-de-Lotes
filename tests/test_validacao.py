@@ -2,10 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from openpyxl import load_workbook
 import pandas as pd
 
-from src.validacao import registrar_erros_rn02, valida_campos_obrigatorios, valida_estrutura
+from src.validacao import valida_campos_obrigatorios, valida_estrutura
 
 
 COLUNAS_VALIDAS = {
@@ -106,64 +105,6 @@ class TestValidacaoRN01RN02(unittest.TestCase):
         pd.DataFrame(linhas).to_excel(caminho, index=False, header=False)
 
         self.assertTrue(valida_campos_obrigatorios(caminho))
-
-    def test_registra_erro_rn02_na_aba_formulario_analise(self):
-        dados = dict(COLUNAS_VALIDAS)
-        dados["responsavel"] = ["Ana", ""]
-        caminho = self.criar_planilha(dados)
-
-        with pd.ExcelWriter(caminho, engine="openpyxl", mode="a") as writer:
-            pd.DataFrame(
-                columns=[
-                    "Linha",
-                    "lote_id",
-                    "Tipo de divergencia encontrada",
-                    "Regra(s) violada(s)",
-                    "Acao recomendada",
-                    "Confirmado no gabarito?",
-                ]
-            ).to_excel(writer, sheet_name="Formulario_Analise", index=False)
-
-        erros = registrar_erros_rn02(caminho)
-
-        workbook = load_workbook(caminho)
-        worksheet = workbook["Formulario_Analise"]
-
-        self.assertEqual(1, len(erros))
-        self.assertEqual(3, worksheet.cell(2, 1).value)
-        self.assertEqual("L002", worksheet.cell(2, 2).value)
-        self.assertEqual("Dados Obrigatorios Ausentes", worksheet.cell(2, 3).value)
-        self.assertEqual("RN02", worksheet.cell(2, 4).value)
-        self.assertIn("responsavel", worksheet.cell(2, 5).value)
-
-    def test_atualiza_linha_rn02_existente_no_formulario_analise(self):
-        dados = dict(COLUNAS_VALIDAS)
-        dados["responsavel"] = ["Ana", ""]
-        caminho = self.criar_planilha(dados)
-
-        with pd.ExcelWriter(caminho, engine="openpyxl", mode="a") as writer:
-            pd.DataFrame(
-                [
-                    {
-                        "Linha": 3,
-                        "lote_id": "L002",
-                        "Tipo de divergencia encontrada": "Valor antigo",
-                        "Regra(s) violada(s)": "RN02",
-                        "Acao recomendada": "Acao antiga",
-                        "Confirmado no gabarito?": "",
-                    }
-                ]
-            ).to_excel(writer, sheet_name="Formulario_Analise", index=False)
-
-        registrar_erros_rn02(caminho)
-
-        workbook = load_workbook(caminho)
-        worksheet = workbook["Formulario_Analise"]
-
-        self.assertEqual(2, worksheet.max_row)
-        self.assertEqual("Dados Obrigatorios Ausentes", worksheet.cell(2, 3).value)
-        self.assertIn("responsavel", worksheet.cell(2, 5).value)
-
 
 if __name__ == "__main__":
     unittest.main()
