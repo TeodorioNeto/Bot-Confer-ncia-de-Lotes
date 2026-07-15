@@ -1,4 +1,5 @@
 import pytest
+import openpyxl
 from src.base_referencia import verificar_lote_na_base, carregar_base_referencia
 
 
@@ -26,8 +27,24 @@ def test_carregar_base_referencia_arquivo_inexistente(tmp_path):
         carregar_base_referencia(str(tmp_path / "nao_existe.xlsx"))
 
 
-def test_carregar_base_referencia_real():
-    """Teste de integração: carrega o xlsx real e confere o gabarito conhecido."""
-    base = carregar_base_referencia()
+def test_carregar_base_referencia_com_arquivo_temporario(tmp_path):
+    """
+    Testa carregar_base_referencia() com um xlsx fictício criado no teste,
+    sem depender da planilha real (que não é versionada no Git).
+    """
+    
+
+    caminho = tmp_path / "base_teste.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Base_Referencia"
+    ws.append(["BASE DE REFERÊNCIA DE LOTES (título)"])  # linha de título, ignorada
+    ws.append(["lote_id", "codigo_produto", "descricao_produto", "status_cadastro"])
+    ws.append(["LG-2026-00101", "COD01", "Setupbox modelo A", "ativo"])
+    ws.append(["LG-2026-00102", "COD02", "Setupbox modelo B", "ativo"])
+    wb.save(caminho)
+
+    base = carregar_base_referencia(caminho=str(caminho), aba="Base_Referencia")
+
     assert "LG-2026-00101" in base
-    assert "LG-2026-00103" not in base  # esse é o caso de divergência do gabarito
+    assert "LG-2026-00103" not in base
