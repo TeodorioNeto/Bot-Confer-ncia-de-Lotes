@@ -118,7 +118,7 @@ if __name__ == "__main__":
 import pytest
 import openpyxl
 from src.base_referencia import verificar_lote_na_base, carregar_base_referencia
-
+from src.relatorio import gerar_relatorio_divergencias
 
 @pytest.fixture
 def base_exemplo():
@@ -165,3 +165,45 @@ def test_carregar_base_referencia_com_arquivo_temporario(tmp_path):
 
     assert "LG-2026-00101" in base
     assert "LG-2026-00103" not in base
+
+
+def test_gera_relatorio_com_divergencias(tmp_path):
+    divergencias = [
+        {"linha": 6, "lote_id": "LG-2026-00103", "regra": "RN03", "problema": "lote_id não existe na base de referência"},
+        {"linha": 27, "lote_id": None, "regra": "RN02", "problema": "lote_id vazio"},
+    ]
+    caminho_saida = tmp_path / "relatorio_teste.xlsx"
+
+    resultado = gerar_relatorio_divergencias(divergencias, caminho_saida=caminho_saida)
+
+    assert resultado.exists()
+
+    wb = openpyxl.load_workbook(resultado)
+    ws = wb.active
+    assert ws["A1"].value == "Linha"
+    assert ws["B1"].value == "Lote ID"
+    assert ws["A2"].value == 6
+    assert ws["B2"].value == "LG-2026-00103"
+    assert ws["A3"].value == 27
+
+
+def test_gera_relatorio_vazio_sem_divergencias(tmp_path):
+    caminho_saida = tmp_path / "relatorio_vazio.xlsx"
+
+    resultado = gerar_relatorio_divergencias([], caminho_saida=caminho_saida)
+
+    assert resultado.exists()
+    wb = openpyxl.load_workbook(resultado)
+    ws = wb.active
+    assert ws["A1"].value == "Linha"
+    assert ws.max_row == 1  # só o cabeçalho, nenhuma divergência
+
+
+def test_gera_relatorio_cria_pasta_data_output(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    resultado = gerar_relatorio_divergencias([])
+
+    assert resultado.exists()
+    assert "data" in str(resultado)
+    assert "output" in str(resultado)
