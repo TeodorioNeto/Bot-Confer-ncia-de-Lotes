@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from src.validacao import valida_campos_obrigatorios, valida_estrutura
+from src.validacao import carregar_planilha, valida_campos_obrigatorios, valida_estrutura
 
 
 def main():
@@ -11,8 +11,9 @@ def main():
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-    estrutura_ok = valida_estrutura(args.arquivo)
-    campos_ok = valida_campos_obrigatorios(args.arquivo) if estrutura_ok else False
+    df = carregar_planilha(args.arquivo)
+    estrutura_ok = valida_estrutura(df=df)
+    campos_ok = valida_campos_obrigatorios(df=df) if estrutura_ok else False
 
     if estrutura_ok and campos_ok:
         print("Planilha valida para RN01 e RN02.")

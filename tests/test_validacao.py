@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.validacao import valida_campos_obrigatorios, valida_estrutura
+from src.validacao import carregar_planilha, valida_campos_obrigatorios, valida_estrutura
 
 
 COLUNAS_VALIDAS = {
@@ -65,6 +65,13 @@ class TestValidacaoRN01RN02(unittest.TestCase):
         caminho = self.criar_planilha(COLUNAS_VALIDAS)
 
         self.assertTrue(valida_campos_obrigatorios(caminho))
+
+    def test_reutiliza_dataframe_carregado_nas_validacoes(self):
+        caminho = self.criar_planilha(COLUNAS_VALIDAS)
+        df = carregar_planilha(caminho)
+
+        self.assertTrue(valida_estrutura(df=df))
+        self.assertTrue(valida_campos_obrigatorios(df=df))
 
     def test_reprova_campos_obrigatorios_quando_existe_vazio(self):
         dados = dict(COLUNAS_VALIDAS)
