@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.config import CAMINHO_PLANILHA_PADRAO
+
 
 COLUNAS_ESTRUTURA = [
     "lote_id",
@@ -16,6 +18,7 @@ COLUNAS_ESTRUTURA = [
 ]
 
 COLUNAS_OBRIGATORIAS = COLUNAS_ESTRUTURA[:-1]
+MINIMO_CAMPOS_REGISTRO = 4
 
 
 def carregar_planilha(caminho_arquivo):
@@ -59,13 +62,14 @@ def filtrar_linhas_de_registro(df):
     preenchidos = df[colunas_existentes].notna() & ~df[colunas_existentes].astype(str).apply(
         lambda coluna: coluna.str.strip().eq("")
     )
-    minimo_campos = min(4, len(colunas_existentes))
+    # Heuristica para ignorar rodapes/legendas mantendo linhas reais parcialmente preenchidas.
+    minimo_campos = min(MINIMO_CAMPOS_REGISTRO, len(colunas_existentes))
     return df.loc[preenchidos.sum(axis=1) >= minimo_campos]
 
 
-def valida_estrutura(caminho_arquivo="dados.xlsx"):
+def valida_estrutura(caminho_arquivo=CAMINHO_PLANILHA_PADRAO, df=None):
     """RN01: valida se o arquivo .xlsx possui exatamente as 8 colunas do PDD."""
-    df = carregar_planilha(caminho_arquivo)
+    df = df if df is not None else carregar_planilha(caminho_arquivo)
     faltantes = obter_colunas_faltantes(df)
     extras = obter_colunas_extras(df)
 
@@ -85,9 +89,9 @@ def valida_estrutura(caminho_arquivo="dados.xlsx"):
     return True
 
 
-def valida_campos_obrigatorios(caminho_arquivo="dados.xlsx"):
+def valida_campos_obrigatorios(caminho_arquivo=CAMINHO_PLANILHA_PADRAO, df=None):
     """RN02: valida campos obrigatorios e aponta registros com dados ausentes."""
-    df = carregar_planilha(caminho_arquivo)
+    df = df if df is not None else carregar_planilha(caminho_arquivo)
     faltantes = obter_colunas_faltantes(df)
 
     if faltantes:
