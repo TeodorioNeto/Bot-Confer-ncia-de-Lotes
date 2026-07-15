@@ -118,7 +118,7 @@ if __name__ == "__main__":
 import pytest
 import openpyxl
 from src.base_referencia import verificar_lote_na_base, carregar_base_referencia
-from src.validacao import normalizar_status, valida_status
+from src.validacao import normalizar_status, valida_observacao_reprovado, valida_status
 from src.relatorio import gerar_relatorio_divergencias
 
 @pytest.fixture
@@ -248,3 +248,53 @@ def test_gera_relatorio_cria_pasta_data_output(tmp_path, monkeypatch):
     assert resultado.exists()
     assert "data" in str(resultado)
     assert "output" in str(resultado)
+
+
+class TestValidacaoRN07(unittest.TestCase):
+    def criar_planilha(self, linhas, cabecalho=None):
+        temp_dir = tempfile.TemporaryDirectory()
+        caminho = Path(temp_dir.name) / "lotes.xlsx"
+        self.addCleanup(temp_dir.cleanup)
+
+        cabecalho = cabecalho or list(COLUNAS_VALIDAS.keys())
+        pd.DataFrame(linhas, columns=cabecalho).to_excel(caminho, index=False)
+        return caminho
+
+    def linha_valida(self, status, observacao):
+        return ["LG-2026-00101", "TV", "A", "Manha", status, "Ana", "2026-07-14", observacao]
+
+    def test_valida_reprovado_com_observacao_preenchida(self):
+        caminho = self.criar_planilha([
+            self.linha_valida("REPROVADO", "Defeito na tela")
+        ])
+
+        self.assertTrue(valida_observacao_reprovado(caminho))
+
+    def test_reprova_reprovado_sem_observacao(self):
+        caminho = self.criar_planilha([
+            self.linha_valida("REPROVADO", "")
+        ])
+
+        self.assertFalse(valida_observacao_reprovado(caminho))
+
+    def test_reprova_nok_sem_observacao(self):
+        caminho = self.criar_planilha([
+            self.linha_valida("NOK", "")
+        ])
+
+        self.assertFalse(valida_observacao_reprovado(caminho))
+
+    def test_nao_exige_observacao_para_aprovado(self):
+        caminho = self.criar_planilha([
+            self.linha_valida("APROVADO", "")
+        ])
+
+        self.assertTrue(valida_observacao_reprovado(caminho))
+
+    def test_reprova_quando_coluna_observacao_falta(self):
+        caminho = self.criar_planilha(
+            [["LG-2026-00105", "TV", "A", "Manha", "REPROVADO", "Ana", "2026-07-14"]],
+            cabecalho=[coluna for coluna in COLUNAS_VALIDAS if coluna != "observacao"],
+        )
+
+        self.assertFalse(valida_observacao_reprovado(caminho))

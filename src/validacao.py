@@ -1,46 +1,13 @@
+﻿"""
+Validacoes das regras de negocio do PDD.
+
+RN01 - Estrutura da planilha.
+RN02 - Campos obrigatorios.
+RN04 - Dominio do status.
+RN05 - Normalizacao de status.
+RN07 - Observacao obrigatoria para lote reprovado.
 """
-RN04 - Valida se o campo status possui um valor dentro do domínio
-       conhecido (PDD seção 12).
-RN05 - Normaliza sinônimos de status para os valores oficiais
-       (OK -> APROVADO, NOK -> REPROVADO) (PDD seção 12).
-"""
 
-STATUS_VALIDOS = {"APROVADO", "REPROVADO", "PENDENTE"}
-SINONIMOS_STATUS = {"OK": "APROVADO", "NOK": "REPROVADO"}
-
-
-def normalizar_status(status):
-    """
-    RN05: normaliza sinônimos conhecidos de status para o valor oficial.
-
-    Retorna o status normalizado (maiúsculas, sinônimos mapeados). Não
-    lança erro para valores não reconhecidos — quem decide se é válido
-    é a valida_status().
-    """
-    if status is None:
-        return status
-    s = str(status).strip().upper()
-    return SINONIMOS_STATUS.get(s, s)
-
-
-def valida_status(status):
-    """
-    RN04: valida se o status (após normalização pela RN05) pertence ao
-    domínio conhecido de valores (APROVADO, REPROVADO, PENDENTE).
-
-    Returns:
-        True se o status normalizado é reconhecido.
-        False se não é reconhecido (divergência que exige intervenção
-        humana - ex: "REPROV." ou "APROVADO PARCIAL").
-
-    Raises:
-        ValueError: se status estiver vazio (RN02).
-    """
-    if not status or not str(status).strip():
-        raise ValueError("status é obrigatório (RN02/RN04)")
-
-    normalizado = normalizar_status(status)
-    return normalizado in STATUS_VALIDOS
 import logging
 from pathlib import Path
 
@@ -48,6 +15,11 @@ import pandas as pd
 
 from src.config import CAMINHO_PLANILHA_PADRAO
 
+
+STATUS_VALIDOS = {"APROVADO", "REPROVADO", "PENDENTE"}
+SINONIMOS_STATUS = {"OK": "APROVADO", "NOK": "REPROVADO"}
+STATUS_REPROVADO = {"REPROVADO", "NOK"}
+ERRO_RN07 = "Reprovacao sem Justificativa Obrigatoria"
 
 COLUNAS_ESTRUTURA = [
     "lote_id",
@@ -62,6 +34,24 @@ COLUNAS_ESTRUTURA = [
 
 COLUNAS_OBRIGATORIAS = COLUNAS_ESTRUTURA[:-1]
 MINIMO_CAMPOS_REGISTRO = 4
+
+
+def normalizar_status(status):
+    """RN05: normaliza sinonimos conhecidos de status para o valor oficial."""
+    if status is None:
+        return status
+
+    s = str(status).strip().upper()
+    return SINONIMOS_STATUS.get(s, s)
+
+
+def valida_status(status):
+    """RN04: valida se o status normalizado pertence ao dominio conhecido."""
+    if not status or not str(status).strip():
+        raise ValueError("status e obrigatorio (RN02/RN04)")
+
+    normalizado = normalizar_status(status)
+    return normalizado in STATUS_VALIDOS
 
 
 def carregar_planilha(caminho_arquivo):
@@ -157,6 +147,31 @@ def valida_campos_obrigatorios(caminho_arquivo=CAMINHO_PLANILHA_PADRAO, df=None)
     return valido
 
 
+def valida_observacao_reprovado(caminho_arquivo=CAMINHO_PLANILHA_PADRAO, df=None):
+    """RN07: exige observacao quando o status final for REPROVADO ou NOK."""
+    df = df if df is not None else carregar_planilha(caminho_arquivo)
+    faltantes = {"status", "observacao"} - set(df.columns)
+
+    if faltantes:
+        logging.error("Colunas obrigatorias da RN07 ausentes: %s", sorted(faltantes))
+        return False
+
+    erros = encontrar_erros_rn07(df)
+
+    for erro in erros:
+        logging.error(
+            "%s na linha %s: status=%s",
+            ERRO_RN07,
+            erro["linha"],
+            erro["status"],
+        )
+
+    if not erros:
+        logging.info("Todos os lotes reprovados possuem observacao.")
+
+    return not erros
+
+
 def encontrar_erros_rn02(df):
     erros = []
 
@@ -179,6 +194,36 @@ def encontrar_erros_rn02(df):
             )
 
     return erros
+
+
+def encontrar_erros_rn07(df):
+    erros = []
+
+    for indice, registro in df.iterrows():
+        status_original = normalizar_status_original(registro["status"])
+        status_final = normalizar_status(registro["status"])
+
+        if status_original in STATUS_REPROVADO and observacao_vazia(registro["observacao"]):
+            erros.append(
+                {
+                    "linha": int(indice) + 1,
+                    "status": status_final,
+                    "erro": ERRO_RN07,
+                }
+            )
+
+    return erros
+
+
+def normalizar_status_original(valor):
+    if pd.isna(valor):
+        return ""
+
+    return str(valor).strip().upper()
+
+
+def observacao_vazia(valor):
+    return pd.isna(valor) or str(valor).strip() == ""
 
 
 def obter_colunas_faltantes(df):
