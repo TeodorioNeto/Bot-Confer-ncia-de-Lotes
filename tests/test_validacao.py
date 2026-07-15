@@ -1,7 +1,125 @@
+import tempfile
+import unittest
+from pathlib import Path
+
+import pandas as pd
+
+from src.validacao import carregar_planilha, valida_campos_obrigatorios, valida_estrutura
+
+
+COLUNAS_VALIDAS = {
+    "lote_id": ["L001", "L002"],
+    "produto": ["TV", "Monitor"],
+    "linha": ["A", "B"],
+    "turno": ["Manha", "Tarde"],
+    "status": ["OK", "NOK"],
+    "responsavel": ["Ana", "Bruno"],
+    "data": ["2026-07-14", "2026-07-14"],
+    "observacao": ["", "Falha encontrada"],
+}
+
+
+class TestValidacaoRN01RN02(unittest.TestCase):
+    def criar_planilha(self, dados):
+        temp_dir = tempfile.TemporaryDirectory()
+        caminho = Path(temp_dir.name) / "lotes.xlsx"
+        pd.DataFrame(dados).to_excel(caminho, index=False)
+        self.addCleanup(temp_dir.cleanup)
+        return caminho
+
+    def test_valida_estrutura_quando_colunas_obrigatorias_existem(self):
+        caminho = self.criar_planilha(COLUNAS_VALIDAS)
+
+        self.assertTrue(valida_estrutura(caminho))
+
+    def test_reprova_estrutura_quando_coluna_obrigatoria_falta(self):
+        dados = dict(COLUNAS_VALIDAS)
+        dados.pop("status")
+        caminho = self.criar_planilha(dados)
+
+        self.assertFalse(valida_estrutura(caminho))
+
+    def test_reprova_estrutura_quando_existe_coluna_extra(self):
+        dados = dict(COLUNAS_VALIDAS)
+        dados["coluna_extra"] = ["x", "y"]
+        caminho = self.criar_planilha(dados)
+
+        self.assertFalse(valida_estrutura(caminho))
+
+    def test_reprova_estrutura_quando_colunas_estao_fora_de_ordem(self):
+        dados = {
+            "produto": ["TV"],
+            "lote_id": ["L001"],
+            "linha": ["A"],
+            "turno": ["Manha"],
+            "status": ["OK"],
+            "responsavel": ["Ana"],
+            "data": ["2026-07-14"],
+            "observacao": [""],
+        }
+        caminho = self.criar_planilha(dados)
+
+        self.assertFalse(valida_estrutura(caminho))
+
+    def test_valida_campos_obrigatorios_quando_todos_estao_preenchidos(self):
+        caminho = self.criar_planilha(COLUNAS_VALIDAS)
+
+        self.assertTrue(valida_campos_obrigatorios(caminho))
+
+    def test_reutiliza_dataframe_carregado_nas_validacoes(self):
+        caminho = self.criar_planilha(COLUNAS_VALIDAS)
+        df = carregar_planilha(caminho)
+
+        self.assertTrue(valida_estrutura(df=df))
+        self.assertTrue(valida_campos_obrigatorios(df=df))
+
+    def test_reprova_campos_obrigatorios_quando_existe_vazio(self):
+        dados = dict(COLUNAS_VALIDAS)
+        dados["responsavel"] = ["Ana", ""]
+        caminho = self.criar_planilha(dados)
+
+        self.assertFalse(valida_campos_obrigatorios(caminho))
+
+    def test_reprova_arquivo_que_nao_e_xlsx(self):
+        with self.assertRaises(ValueError):
+            valida_estrutura("lotes.csv")
+
+    def test_valida_estrutura_com_linhas_descritivas_antes_do_cabecalho(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        caminho = Path(temp_dir.name) / "lotes.xlsx"
+        self.addCleanup(temp_dir.cleanup)
+
+        linhas = [
+            ["PLANILHA DE INSPECAO DE LOTES"],
+            ["Arquivo gerado pelo sistema"],
+            list(COLUNAS_VALIDAS.keys()),
+            ["L001", "TV", "A", "Manha", "OK", "Ana", "2026-07-14", ""],
+        ]
+        pd.DataFrame(linhas).to_excel(caminho, index=False, header=False)
+
+        self.assertTrue(valida_estrutura(caminho))
+
+    def test_ignora_rodape_apos_linhas_de_registro(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        caminho = Path(temp_dir.name) / "lotes.xlsx"
+        self.addCleanup(temp_dir.cleanup)
+
+        linhas = [
+            list(COLUNAS_VALIDAS.keys()),
+            ["L001", "TV", "A", "Manha", "OK", "Ana", "2026-07-14", ""],
+            ["Total de registros: 1", "", "", "", "Resumo final", "", "", ""],
+        ]
+        pd.DataFrame(linhas).to_excel(caminho, index=False, header=False)
+
+        self.assertTrue(valida_campos_obrigatorios(caminho))
+
+if __name__ == "__main__":
+    unittest.main()
 import pytest
 import openpyxl
 from src.base_referencia import verificar_lote_na_base, carregar_base_referencia
 from src.validacao import normalizar_status, valida_status
+from src.relatorio import gerar_relatorio_divergencias
 
 @pytest.fixture
 def base_exemplo():
@@ -90,3 +208,43 @@ def test_valida_status_vazio_gera_erro():
 
     with pytest.raises(ValueError):
         valida_status(None)
+def test_gera_relatorio_com_divergencias(tmp_path):
+    divergencias = [
+        {"linha": 6, "lote_id": "LG-2026-00103", "regra": "RN03", "problema": "lote_id não existe na base de referência"},
+        {"linha": 27, "lote_id": None, "regra": "RN02", "problema": "lote_id vazio"},
+    ]
+    caminho_saida = tmp_path / "relatorio_teste.xlsx"
+
+    resultado = gerar_relatorio_divergencias(divergencias, caminho_saida=caminho_saida)
+
+    assert resultado.exists()
+
+    wb = openpyxl.load_workbook(resultado)
+    ws = wb.active
+    assert ws["A1"].value == "Linha"
+    assert ws["B1"].value == "Lote ID"
+    assert ws["A2"].value == 6
+    assert ws["B2"].value == "LG-2026-00103"
+    assert ws["A3"].value == 27
+
+
+def test_gera_relatorio_vazio_sem_divergencias(tmp_path):
+    caminho_saida = tmp_path / "relatorio_vazio.xlsx"
+
+    resultado = gerar_relatorio_divergencias([], caminho_saida=caminho_saida)
+
+    assert resultado.exists()
+    wb = openpyxl.load_workbook(resultado)
+    ws = wb.active
+    assert ws["A1"].value == "Linha"
+    assert ws.max_row == 1  # só o cabeçalho, nenhuma divergência
+
+
+def test_gera_relatorio_cria_pasta_data_output(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    resultado = gerar_relatorio_divergencias([])
+
+    assert resultado.exists()
+    assert "data" in str(resultado)
+    assert "output" in str(resultado)
