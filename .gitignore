@@ -1,7 +1,39 @@
 .env
 __pycache__/
 *.pyc
-.pytest_cache/
 samples/*.xlsx
 data/**/*.xlsx
 *.xlsx
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Pytest / cache
+.pytest_cache/
+.cache/
+
+# Variáveis de ambiente / segredos
+.env
+
+# VS Code
+.vscode/
+
+# Dados sensíveis / planilhas de trabalho
+*.xlsx
+!data/samples/*.xlsx
+
+# Logs e saídas geradas
+*.log
+data/output/
+
+# SO
+.DS_Store
+Thumbs.db
