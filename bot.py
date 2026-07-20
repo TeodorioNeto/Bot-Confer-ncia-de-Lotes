@@ -15,7 +15,7 @@ from src.validacao import (
     SINONIMOS_STATUS,
     STATUS_REPROVADO,
     normalizar_status,
-    valida_data,
+    status_ambiguo,
     valida_status,
 )
 
@@ -101,15 +101,12 @@ def processar_item(item, base_referencia):
                 f"Status '{status}' não pertence ao domínio permitido",
                 "Corrigir para APROVADO, REPROVADO ou PENDENTE",
             )
-
-    # RN06: data no formato oficial.
-    valor_data = item.get_value("data")
-    if not _valor_vazio(valor_data) and not valida_data(valor_data):
-        registrar(
-            "RN06",
-            f"Data '{valor_data}' fora do formato DD/MM/AAAA",
-            "Corrigir a data para o formato DD/MM/AAAA",
-        )
+        if status_ambiguo(status):
+            registrar(
+                "RN06",
+                f"Status '{status}' não reconhecível nem normalizável",
+                "Encaminhar o registro para revisão humana",
+            )
 
     # RN07: observação obrigatória quando reprovado.
     observacao = item.get_value("observacao")

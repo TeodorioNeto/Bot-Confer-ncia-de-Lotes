@@ -117,10 +117,11 @@ if __name__ == "__main__":
     unittest.main()
 import pytest
 import openpyxl
+from bot import processar_item
 from src.base_referencia import verificar_lote_na_base, carregar_base_referencia
 from src.validacao import (
     normalizar_status,
-    valida_data,
+    status_ambiguo,
     valida_observacao_reprovado,
     valida_status,
 )
@@ -129,6 +130,29 @@ from src.relatorio import gerar_relatorio_divergencias
 @pytest.fixture
 def base_exemplo():
     return {"LG-2026-00101", "LG-2026-00102", "LG-2026-00104", "LG-2026-00105"}
+
+
+class ItemTeste:
+    def __init__(self, valores):
+        self.valores = valores
+
+    def get_value(self, chave):
+        return self.valores.get(chave)
+
+
+def criar_item(status, observacao="Inspecao conferida"):
+    return ItemTeste(
+        {
+            "lote_id": "LG-2026-00101",
+            "produto": "TV",
+            "linha": "A",
+            "turno": "MANHA",
+            "status": status,
+            "responsavel": "Ana",
+            "data": "14/06/2026",
+            "observacao": observacao,
+        }
+    )
 
 
 def test_lote_existente_na_base(base_exemplo):
@@ -207,25 +231,39 @@ def test_valida_status_rejeita_valor_nao_reconhecido():
     assert valida_status("APROVADO PARCIAL") is False
 
 
+def test_rn06_identifica_status_ambiguo():
+    assert status_ambiguo("REPROV.") is True
+    assert status_ambiguo("APROVADO PARCIAL") is True
+
+
+def test_rn06_nao_marca_status_oficial_ou_normalizavel():
+    assert status_ambiguo("APROVADO") is False
+    assert status_ambiguo("NOK") is False
+    assert status_ambiguo("") is False
+
+
+def test_performer_encaminha_status_ambiguo_para_revisao(base_exemplo):
+    resultado = processar_item(criar_item("APROVADO PARCIAL"), base_exemplo)
+    regras = [analise["regra"] for analise in resultado["analises"]]
+
+    assert regras == ["RN04", "RN06"]
+    assert resultado["analises"][1]["acao"] == "Encaminhar o registro para revisão humana"
+
+
+def test_performer_normaliza_nok_e_exige_observacao(base_exemplo):
+    resultado = processar_item(criar_item("NOK", observacao=""), base_exemplo)
+
+    assert any(analise["regra"] == "RN05" for analise in resultado["analises"])
+    assert any(analise["regra"] == "RN07" for analise in resultado["analises"])
+    assert not any(analise["regra"] == "RN06" for analise in resultado["analises"])
+
+
 def test_valida_status_vazio_gera_erro():
     with pytest.raises(ValueError):
         valida_status("")
 
     with pytest.raises(ValueError):
         valida_status(None)
-
-
-def test_valida_data_no_formato_oficial():
-    assert valida_data("14/06/2026") is True
-
-
-def test_reprova_data_com_separador_incorreto():
-    assert valida_data("15-06-2026") is False
-
-
-def test_data_vazia_gera_erro():
-    with pytest.raises(ValueError):
-        valida_data(None)
 
 
 def test_gera_relatorio_com_divergencias(tmp_path):

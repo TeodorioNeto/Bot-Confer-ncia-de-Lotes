@@ -5,11 +5,11 @@ RN01 - Estrutura da planilha.
 RN02 - Campos obrigatorios.
 RN04 - Dominio do status.
 RN05 - Normalizacao de status.
+RN06 - Status ambiguo para revisao humana.
 RN07 - Observacao obrigatoria para lote reprovado.
 """
 
 import logging
-from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -18,9 +18,8 @@ from src.config import CAMINHO_PLANILHA_PADRAO
 
 
 STATUS_VALIDOS = {"APROVADO", "REPROVADO", "PENDENTE"}
-# Adicionado o 'REPROV.' aqui:
 SINONIMOS_STATUS = {"OK": "APROVADO", "NOK": "REPROVADO"}
-STATUS_REPROVADO = {"REPROVADO", "NOK", "REPROV."}
+STATUS_REPROVADO = {"REPROVADO", "NOK"}
 ERRO_RN07 = "Reprovacao sem Justificativa Obrigatoria"
 
 COLUNAS_ESTRUTURA = [
@@ -56,20 +55,12 @@ def valida_status(status):
     return normalizado in STATUS_VALIDOS
 
 
-def valida_data(valor):
-    """RN06: aceita datas reais ou texto estritamente no formato DD/MM/AAAA."""
-    if valor is None or (isinstance(valor, float) and pd.isna(valor)):
-        raise ValueError("data e obrigatoria (RN02/RN06)")
-
-    if isinstance(valor, (datetime, date)):
-        return True
-
-    texto = str(valor).strip()
-    try:
-        datetime.strptime(texto, "%d/%m/%Y")
-    except ValueError:
+def status_ambiguo(status):
+    """RN06: identifica status que nao pode ser reconhecido nem normalizado."""
+    if status is None or not str(status).strip():
         return False
-    return True
+
+    return normalizar_status(status) not in STATUS_VALIDOS
 
 
 def carregar_planilha(caminho_arquivo):
