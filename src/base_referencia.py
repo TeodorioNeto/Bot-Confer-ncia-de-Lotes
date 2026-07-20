@@ -8,7 +8,7 @@ import openpyxl
 
 
 def carregar_base_referencia(
-    caminho="Inspecao_lotes_Formulario_Analise-Matriz-Priorização.xlsx",
+    caminho="dados_entrada/Inspecao_lotes_Formulario_Analise-Matriz-Priorização.xlsx",
     aba="Base_Referencia",
 ):
     """

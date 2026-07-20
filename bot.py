@@ -68,10 +68,12 @@ def processar_item(item, base_referencia):
     except ValueError:
         pass  # já reportado como campo vazio na RN02, se "status" estiver na lista
 
-    # RN07: observação obrigatória quando reprovado
-    status_original = str(status).strip().upper() if status else ""
+   # RN07: observação obrigatória quando reprovado
     observacao = item.get_value("observacao")
-    if status_original in STATUS_REPROVADO and _valor_vazio(observacao):
+    status_normalizado = normalizar_status(status)
+    
+    # Agora cobramos a observação baseada no status oficial normalizado
+    if status_normalizado == "REPROVADO" and _valor_vazio(observacao):
         divergencias.append(f"RN07: {ERRO_RN07}")
 
     return {"lote_id": lote_id, "divergencias": divergencias}

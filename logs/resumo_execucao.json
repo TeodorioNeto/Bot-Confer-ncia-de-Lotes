@@ -1,0 +1,116 @@
+{
+  "data_execucao": "2026-07-20T10:06:05.320105",
+  "total_itens": 25,
+  "processados": 18,
+  "falhados": 7,
+  "divergencias": [
+    {
+      "lote_id": "LG-2026-00101",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00102",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00103",
+      "divergencias": [
+        "RN03: lote_id não existe na base de referência"
+      ]
+    },
+    {
+      "lote_id": "LG-2026-00104",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00105",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00106",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00107",
+      "divergencias": [
+        "RN07: Reprovacao sem Justificativa Obrigatoria"
+      ]
+    },
+    {
+      "lote_id": "LG-2026-00108",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00109",
+      "divergencias": [
+        "RN02: campos vazios: responsavel"
+      ]
+    },
+    {
+      "lote_id": "LG-2026-00110",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00111",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00112",
+      "divergencias": [
+        "RN07: Reprovacao sem Justificativa Obrigatoria"
+      ]
+    },
+    {
+      "lote_id": "LG-2026-00113",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00114",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00115",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00116",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00117",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00118",
+      "divergencias": [
+        "RN04/RN05: status 'APROVADO PARCIAL' não reconhecível (normalizado: 'APROVADO PARCIAL')"
+      ]
+    },
+    {
+      "lote_id": "LG-2026-00119",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00120",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00121",
+      "divergencias": [
+        "RN07: Reprovacao sem Justificativa Obrigatoria"
+      ]
+    },
+    {
+      "lote_id": "LG-2026-00122",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00123",
+      "divergencias": []
+    },
+    {
+      "lote_id": "LG-2026-00125",
+      "divergencias": []
+    }
+  ]
+}

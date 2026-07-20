@@ -61,7 +61,7 @@ def main():
             title="Início da execução",
             message="Iniciando auditoria de acessos.",
             alert_type=AlertType.INFO,
-    )
+        )
 
     if task_id:
         maestro.new_log_entry  # placeholder de ponto de extensão, se quiserem log estruturado depois
@@ -103,17 +103,29 @@ def main():
         try:
             resultado = processar_item(item, base_referencia)
             resumo_divergencias.append(resultado)
-            item.report_done()
-            processados += 1
-            logger.info("Item %s processado.", resultado["lote_id"])
+            
+            # AQUI ESTÁ A MÁGICA DA MALHA FINA:
+            if resultado["divergencias"]:
+                # Se a lista de divergências tiver qualquer coisa, o item reprovou nas regras!
+                erros_formatados = " | ".join(resultado["divergencias"])
+                item.report_error()
+                falhados += 1
+                mensagem = f"Item {resultado['lote_id']} barrado: {erros_formatados}"
+                print(mensagem)
+                logger.warning(mensagem)
+            else:
+                # Se a lista estiver vazia, passou liso em todas as regras!
+                item.report_done()
+                processados += 1
+                logger.info("Item %s processado com sucesso.", resultado["lote_id"])
+                
         except ValueError as erro:
-            # Apenas avisa o Maestro que o item deu erro (a função não aceita parâmetros)
+            # Cai aqui apenas se for o erro crasso da RN02 (falta de lote_id)
             item.report_error()
-    
-            # Imprime no terminal para você saber o que aconteceu
-            print(f"Item reprovado na validação: {str(erro)}")
+            mensagem_erro = f"Item sem lote_id reprovado na validação: {str(erro)}"
+            print(mensagem_erro)
             falhados += 1
-            logger.warning("Item com erro de validação: %s", erro)
+            logger.warning(mensagem_erro)
 
     # Relatório final em JSON, postado como artefato
     resumo = {
