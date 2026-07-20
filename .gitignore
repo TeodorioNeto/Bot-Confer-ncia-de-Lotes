@@ -37,3 +37,6 @@ data/output/
 # SO
 .DS_Store
 Thumbs.db
+
+# Artefatos locais de execucao
+logs/
