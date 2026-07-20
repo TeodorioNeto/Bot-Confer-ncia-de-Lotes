@@ -19,12 +19,13 @@ Bot corporativo para conferir lotes de qualidade, identificar divergencias na pl
 
 | Regra | Validacao |
 | --- | --- |
-| RN01 | Estrutura obrigatoria da planilha |
-| RN02 | Campos obrigatorios preenchidos |
-| RN03 | Lote existente na base de referencia |
-| RN04/RN05 | Status valido e normalizado |
-| RN06 | Data obrigatoria no formato `DD/MM/AAAA` |
-| RN07 | Observacao obrigatoria quando o lote esta reprovado |
+| RN01 | A planilha deve ter exatamente as colunas `lote_id`, `produto`, `linha`, `turno`, `status`, `responsavel`, `data` e `observacao` |
+| RN02 | `lote_id`, `produto`, `linha`, `turno`, `status`, `responsavel` e `data` nao podem estar vazios |
+| RN03 | O `lote_id` deve existir na aba `Base_Referencia` |
+| RN04 | O status deve ser `APROVADO`, `REPROVADO` ou `PENDENTE` |
+| RN05 | `OK` equivale a `APROVADO` e `NOK` equivale a `REPROVADO`; a normalizacao ocorre antes da validacao |
+| RN06 | Status nao reconhecivel nem normalizavel e um caso ambiguo encaminhado para revisao humana |
+| RN07 | Lote com status `REPROVADO` ou `NOK` deve ter a observacao preenchida |
 
 ## Estrutura do projeto
 
