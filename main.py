@@ -8,7 +8,7 @@ sem tentar processar nada.
 import json
 import logging
 from datetime import datetime
-from botcity.maestro import BotMaestroSDK, AutomationTaskFinishStatus, AlertType
+from botcity.maestro import BotMaestroSDK, AutomationTaskFinishStatus, AlertType, ErrorType
 from config import (
     MAESTRO_ENABLED,
     MAESTRO_KEY,
@@ -101,7 +101,10 @@ def main():
                 resumo_divergencias.append(resultado)
 
                 if resultado["divergencias"]:
-                    item.report_error()
+                    item.report_error(
+                        error_type=ErrorType.BUSINESS,
+                        finish_message=" | ".join(resultado["divergencias"]),
+                    )
                     falhados += 1
                     logger.warning(
                         "Item %s barrado: %s",
