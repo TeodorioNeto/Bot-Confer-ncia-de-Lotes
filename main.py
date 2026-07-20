@@ -9,11 +9,13 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-
+from botcity import maestro
 from botcity.maestro import BotMaestroSDK, AutomationTaskFinishStatus, AlertType
-
 from config import (
     MAESTRO_ENABLED,
+    MAESTRO_KEY,
+    MAESTRO_LOGIN,
+    MAESTRO_SERVER,
     VAULT_ENABLED,
     DADOS_ENTRADA_DIR,
     DATAPOOL_LABEL,
@@ -36,13 +38,31 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    maestro = BotMaestroSDK.from_sys_args()
+    maestro = BotMaestroSDK()
+    maestro.login(server=MAESTRO_SERVER, login=MAESTRO_LOGIN, key=MAESTRO_KEY)
     maestro.RAISE_NOT_CONNECTED = not MAESTRO_ENABLED
 
-    execution = maestro.get_execution()
+    try:
+        # Tenta pegar a execução caso esteja rodando via BotCity Runner
+        execution = maestro.get_execution()
+        task_id = execution.task_id
+        print(f"Rodando via Maestro. Task ID: {task_id}")
+    except ValueError:
+        # Cai aqui se estiver rodando localmente direto pelo terminal (python main.py)
+        print("Rodando localmente (sem Runner). Task ID será ignorado.")
+        execution = None
+        task_id = None
     task_id = execution.task_id if execution else None
 
     logger.info("Iniciando auditoria de acessos.")
+    if task_id:
+        maestro.generate_alert(
+            task_id=task_id,
+            title="Início da execução",
+            message="Iniciando auditoria de acessos.",
+            alert_type=AlertType.INFO,
+    )
+
     if task_id:
         maestro.new_log_entry  # placeholder de ponto de extensão, se quiserem log estruturado depois
 
@@ -87,7 +107,11 @@ def main():
             processados += 1
             logger.info("Item %s processado.", resultado["lote_id"])
         except ValueError as erro:
-            item.report_error(message=str(erro), error_type="ValidationError")
+            # Apenas avisa o Maestro que o item deu erro (a função não aceita parâmetros)
+            item.report_error()
+    
+            # Imprime no terminal para você saber o que aconteceu
+            print(f"Item reprovado na validação: {str(erro)}")
             falhados += 1
             logger.warning("Item com erro de validação: %s", erro)
 
