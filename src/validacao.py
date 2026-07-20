@@ -9,6 +9,7 @@ RN07 - Observacao obrigatoria para lote reprovado.
 """
 
 import logging
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -18,8 +19,7 @@ from src.config import CAMINHO_PLANILHA_PADRAO
 
 STATUS_VALIDOS = {"APROVADO", "REPROVADO", "PENDENTE"}
 # Adicionado o 'REPROV.' aqui:
-SINONIMOS_STATUS = {"OK": "APROVADO", "NOK": "REPROVADO", "REPROV.": "REPROVADO"}
-# Adicionado o 'REPROV.' aqui também:
+SINONIMOS_STATUS = {"OK": "APROVADO", "NOK": "REPROVADO"}
 STATUS_REPROVADO = {"REPROVADO", "NOK", "REPROV."}
 ERRO_RN07 = "Reprovacao sem Justificativa Obrigatoria"
 
@@ -54,6 +54,22 @@ def valida_status(status):
 
     normalizado = normalizar_status(status)
     return normalizado in STATUS_VALIDOS
+
+
+def valida_data(valor):
+    """RN06: aceita datas reais ou texto estritamente no formato DD/MM/AAAA."""
+    if valor is None or (isinstance(valor, float) and pd.isna(valor)):
+        raise ValueError("data e obrigatoria (RN02/RN06)")
+
+    if isinstance(valor, (datetime, date)):
+        return True
+
+    texto = str(valor).strip()
+    try:
+        datetime.strptime(texto, "%d/%m/%Y")
+    except ValueError:
+        return False
+    return True
 
 
 def carregar_planilha(caminho_arquivo):
