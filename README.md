@@ -31,21 +31,6 @@ Este repositorio adapta o exercicio integrado de BotCity para o cenario de sala 
 | RN06 | Status nao reconhecivel nem normalizavel e um caso ambiguo encaminhado para revisao humana |
 | RN07 | Lote com status `REPROVADO` ou `NOK` deve ter a observacao preenchida |
 
-## Alinhamento com o exercicio integrado
-
-| Criterio | Status | Observacao |
-| --- | --- | --- |
-| Estrutura modular (`main.py`, `config.py`, `bot.py`) | Atendido | Tambem ha `dispatcher.py` e `vault_client.py` para separar responsabilidades |
-| Variaveis via `.env` | Parcial | Credenciais e flags usam `.env`; caminhos padrao ainda possuem fallback no codigo |
-| Logs locais | Atendido | `logs/execucao.log` com timestamp, nivel e mensagem |
-| Fail Fast | Atendido | Falha se `dados_entrada/` ou a planilha de entrada nao existir |
-| Maestro | Atendido | Envia alerta, artefatos e finaliza task quando ha `task_id` |
-| ExecutionResult | Pendente | O resumo ainda e montado como `dict` manual |
-| DataPool | Atendido | Usa `FilaAuditoriaLotes` e consome itens em loop |
-| Dispatcher CSV | Adaptado | O projeto usa `.xlsx`, conforme o cenario de lotes trabalhado em sala |
-| Validacao CPF vazio | Adaptado | O projeto valida `lote_id` vazio como RN02 |
-| Credentials Vault | Atendido | Busca `credencial_erp` e nunca registra senha |
-
 ## Estrutura do projeto
 
 ```text
