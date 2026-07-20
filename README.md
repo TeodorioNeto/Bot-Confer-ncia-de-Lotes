@@ -1,6 +1,8 @@
 # Auditor de Lotes
 
-Bot corporativo para conferir lotes de qualidade, identificar divergencias na planilha de inspecao e preencher automaticamente a aba `Formulario_Analise`. O projeto pode ser executado localmente ou pelo BotCity Maestro, com DataPool, Credentials Vault, logs e evidencias da execucao.
+Bot corporativo para conferir lotes de qualidade, identificar divergencias na planilha de inspecao e preencher automaticamente as abas de evidencia da planilha final. O projeto pode ser executado localmente ou pelo BotCity Maestro, com DataPool, Credentials Vault, logs e evidencias da execucao.
+
+Este repositorio adapta o exercicio integrado de BotCity para o cenario de sala "verificacao de lotes". Por isso, o fluxo usa `lote_id` e planilha `.xlsx` em vez de CPF e CSV.
 
 ## Funcionalidades
 
@@ -9,6 +11,8 @@ Bot corporativo para conferir lotes de qualidade, identificar divergencias na pl
 - valida e normaliza os status de inspecao;
 - verifica a observacao obrigatoria de lotes reprovados;
 - preenche a aba `Formulario_Analise` em uma copia da planilha;
+- cria/atualiza a aba `lotes_ambiguos` com os casos RN06;
+- cria/atualiza a aba `Resumo_Diario` com indicadores consolidados;
 - publica e consome itens pelo DataPool `FilaAuditoriaLotes`;
 - recupera a credencial do ERP pelo Credentials Vault;
 - registra logs locais com data, hora e severidade;
@@ -27,6 +31,21 @@ Bot corporativo para conferir lotes de qualidade, identificar divergencias na pl
 | RN06 | Status nao reconhecivel nem normalizavel e um caso ambiguo encaminhado para revisao humana |
 | RN07 | Lote com status `REPROVADO` ou `NOK` deve ter a observacao preenchida |
 
+## Alinhamento com o exercicio integrado
+
+| Criterio | Status | Observacao |
+| --- | --- | --- |
+| Estrutura modular (`main.py`, `config.py`, `bot.py`) | Atendido | Tambem ha `dispatcher.py` e `vault_client.py` para separar responsabilidades |
+| Variaveis via `.env` | Parcial | Credenciais e flags usam `.env`; caminhos padrao ainda possuem fallback no codigo |
+| Logs locais | Atendido | `logs/execucao.log` com timestamp, nivel e mensagem |
+| Fail Fast | Atendido | Falha se `dados_entrada/` ou a planilha de entrada nao existir |
+| Maestro | Atendido | Envia alerta, artefatos e finaliza task quando ha `task_id` |
+| ExecutionResult | Pendente | O resumo ainda e montado como `dict` manual |
+| DataPool | Atendido | Usa `FilaAuditoriaLotes` e consome itens em loop |
+| Dispatcher CSV | Adaptado | O projeto usa `.xlsx`, conforme o cenario de lotes trabalhado em sala |
+| Validacao CPF vazio | Adaptado | O projeto valida `lote_id` vazio como RN02 |
+| Credentials Vault | Atendido | Busca `credencial_erp` e nunca registra senha |
+
 ## Estrutura do projeto
 
 ```text
@@ -44,6 +63,7 @@ Bot corporativo para conferir lotes de qualidade, identificar divergencias na pl
 |   |-- relatorio.py
 |   `-- validacao.py
 |-- tests/
+|   |-- test_analise_formulario.py
 |   `-- test_validacao.py
 |-- dados_entrada/           # planilhas de entrada, nao versionadas
 `-- logs/                    # logs e artefatos gerados
@@ -93,6 +113,11 @@ O caminho pode ser alterado pela variavel `ARQUIVO_INSPECAO`. A planilha deve po
 - `Inspecao_14_06_2026`, com os registros de inspecao;
 - `Base_Referencia`, com os lotes validos;
 - `Formulario_Analise`, onde as divergencias serao registradas.
+
+A planilha final gerada tambem tera:
+
+- `lotes_ambiguos`, com registros de RN06 enviados para revisao humana;
+- `Resumo_Diario`, com indicadores de registros, divergencias, normalizacoes e ambiguidades.
 
 O bot aplica validacao *fail fast*: se a pasta ou o arquivo de entrada nao existir, a execucao termina imediatamente. Quando estiver rodando pelo Runner, a falha tambem e reportada ao Maestro.
 
@@ -175,7 +200,7 @@ Os arquivos gerados ficam na pasta `logs/`:
 | --- | --- |
 | `execucao.log` | Eventos da execucao com timestamp e severidade |
 | `resumo_execucao.json` | Totais, falhas e divergencias encontradas |
-| `inspecao_lotes_dia_analisado.xlsx` | Copia da planilha com `Formulario_Analise` preenchido |
+| `inspecao_lotes_dia_analisado.xlsx` | Copia da planilha com `Formulario_Analise`, `lotes_ambiguos` e `Resumo_Diario` preenchidos |
 
 Quando a execucao ocorre pelo Runner, o JSON e a planilha analisada tambem sao publicados como artefatos da tarefa no Maestro.
 
@@ -192,6 +217,30 @@ Alternativa com o `unittest`:
 ```powershell
 python -m unittest discover -s tests -p "test*.py"
 ```
+
+Resultado esperado no estado atual:
+
+```text
+36 passed
+```
+
+## Pacote para BotCity Maestro
+
+O pacote de upload deve seguir o layout abaixo, igual ao zip usado em aula:
+
+```text
+main.py
+bot.py
+config.py
+dispatcher.py
+vault_client.py
+requirements.txt
+README.md
+src/
+dados_entrada/inspecao_lotes_dia.xlsx
+```
+
+O arquivo `.zip` e artefato de build e nao deve ser commitado. Quando necessario, gere o pacote localmente e suba o zip pelo painel do Maestro.
 
 ## Seguranca
 
