@@ -8,8 +8,6 @@ sem tentar processar nada.
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
-from botcity import maestro
 from botcity.maestro import BotMaestroSDK, AutomationTaskFinishStatus, AlertType
 from config import (
     MAESTRO_ENABLED,
@@ -18,11 +16,14 @@ from config import (
     MAESTRO_SERVER,
     VAULT_ENABLED,
     DADOS_ENTRADA_DIR,
+    ARQUIVO_INSPECAO,
     DATAPOOL_LABEL,
     LOGS_DIR,
 )
 from vault_client import obter_credencial_erp
 from bot import processar_item
+from dispatcher import popular_fila
+from src.analise_formulario import analisar_e_preencher_formulario
 from src.base_referencia import carregar_base_referencia
 
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -38,122 +39,151 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    maestro = BotMaestroSDK()
-    maestro.login(server=MAESTRO_SERVER, login=MAESTRO_LOGIN, key=MAESTRO_KEY)
-    maestro.RAISE_NOT_CONNECTED = not MAESTRO_ENABLED
-
+    maestro = None
+    task_id = None
+    total = processados = falhados = 0
     try:
-        # Tenta pegar a execução caso esteja rodando via BotCity Runner
-        execution = maestro.get_execution()
-        task_id = execution.task_id
-        print(f"Rodando via Maestro. Task ID: {task_id}")
-    except ValueError:
-        # Cai aqui se estiver rodando localmente direto pelo terminal (python main.py)
-        print("Rodando localmente (sem Runner). Task ID será ignorado.")
-        execution = None
-        task_id = None
-    task_id = execution.task_id if execution else None
+        maestro = BotMaestroSDK.from_sys_args()
+        task_id = getattr(maestro, "task_id", None)
+        if task_id:
+            print(f"Rodando via Maestro. Task ID: {task_id}")
+        else:
+            if MAESTRO_ENABLED:
+                maestro.login(
+                    server=MAESTRO_SERVER,
+                    login=MAESTRO_LOGIN,
+                    key=MAESTRO_KEY,
+                )
+            maestro.RAISE_NOT_CONNECTED = False
+            print("Rodando localmente (sem Runner).")
 
-    logger.info("Iniciando auditoria de acessos.")
-    if task_id:
-        maestro.generate_alert(
-            task_id=task_id,
-            title="Início da execução",
-            message="Iniciando auditoria de acessos.",
-            alert_type=AlertType.INFO,
+        conectado_maestro = bool(task_id or MAESTRO_ENABLED)
+        logger.info("Iniciando auditoria de lotes.")
+        if task_id:
+            maestro.alert(
+                task_id=task_id,
+                title="Início da execução",
+                message="Iniciando auditoria de lotes.",
+                alert_type=AlertType.INFO,
+            )
+
+        if not DADOS_ENTRADA_DIR.exists() or not ARQUIVO_INSPECAO.exists():
+            raise FileNotFoundError(
+                f"Planilha de entrada não encontrada em: {ARQUIVO_INSPECAO}"
+            )
+
+        if VAULT_ENABLED and conectado_maestro:
+            obter_credencial_erp(maestro)
+
+        # O Dispatcher sempre precede o Performer quando há conexão com o Maestro.
+        if conectado_maestro:
+            logger.info("Executando Dispatcher antes do Performer.")
+            popular_fila(maestro)
+
+        caminho_planilha_analisada = LOGS_DIR / "inspecao_lotes_dia_analisado.xlsx"
+        _, resultados_planilha, resumo_analise = analisar_e_preencher_formulario(
+            ARQUIVO_INSPECAO,
+            caminho_planilha_analisada,
         )
 
-    if task_id:
-        maestro.new_log_entry  # placeholder de ponto de extensão, se quiserem log estruturado depois
+        resumo_divergencias = []
+        if conectado_maestro:
+            base_referencia = carregar_base_referencia(ARQUIVO_INSPECAO)
+            datapool = maestro.get_datapool(DATAPOOL_LABEL)
 
-    # Fail Fast: pasta de entrada precisa existir
-    if not DADOS_ENTRADA_DIR.exists():
-        mensagem = f"Pasta {DADOS_ENTRADA_DIR} não encontrada. Encerrando."
-        logger.error(mensagem)
+            while datapool.has_next():
+                item = datapool.next(task_id=task_id)
+                if item is None:
+                    break
+
+                total += 1
+                resultado = processar_item(item, base_referencia)
+                resumo_divergencias.append(resultado)
+
+                if resultado["divergencias"]:
+                    item.report_error()
+                    falhados += 1
+                    logger.warning(
+                        "Item %s barrado: %s",
+                        resultado["lote_id"],
+                        " | ".join(resultado["divergencias"]),
+                    )
+                else:
+                    item.report_done()
+                    processados += 1
+                    logger.info("Item %s processado.", resultado["lote_id"])
+        else:
+            total = resumo_analise["total_registros"]
+            falhados = resumo_analise["registros_com_divergencia"]
+            processados = total - falhados
+            resumo_divergencias = resultados_planilha
+
+        resumo = {
+            "data_execucao": datetime.now().isoformat(),
+            "total_itens": total,
+            "processados": processados,
+            "falhados": falhados,
+            "analise_planilha": resumo_analise,
+            "divergencias": resumo_divergencias,
+        }
+        caminho_resumo = LOGS_DIR / "resumo_execucao.json"
+        caminho_resumo.write_text(
+            json.dumps(resumo, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
         if task_id:
-            maestro.generate_alert(
+            maestro.post_artifact(
                 task_id=task_id,
-                title="Pasta de entrada ausente",
-                message=mensagem,
-                alert_type=AlertType.ERROR,
+                artifact_name="resumo_execucao.json",
+                filepath=str(caminho_resumo),
+            )
+            maestro.post_artifact(
+                task_id=task_id,
+                artifact_name="inspecao_lotes_dia_analisado.xlsx",
+                filepath=str(caminho_planilha_analisada),
             )
             maestro.finish_task(
                 task_id=task_id,
-                status=AutomationTaskFinishStatus.FAILED,
-                message=mensagem,
+                status=AutomationTaskFinishStatus.SUCCESS,
+                message="Auditoria concluída e formulário de análise preenchido.",
+                total_items=total,
+                processed_items=processados,
+                failed_items=falhados,
             )
-        return
 
-    # Credencial (não loga a senha)
-    if VAULT_ENABLED:
-        obter_credencial_erp(maestro)
-
-    base_referencia = carregar_base_referencia()
-    datapool = maestro.get_datapool(DATAPOOL_LABEL)
-
-    total = processados = falhados = 0
-    resumo_divergencias = []
-
-    while datapool.has_next():
-        item = datapool.next(task_id=task_id)
-        if item is None:
-            break
-
-        total += 1
-        try:
-            resultado = processar_item(item, base_referencia)
-            resumo_divergencias.append(resultado)
-            
-            # AQUI ESTÁ A MÁGICA DA MALHA FINA:
-            if resultado["divergencias"]:
-                # Se a lista de divergências tiver qualquer coisa, o item reprovou nas regras!
-                erros_formatados = " | ".join(resultado["divergencias"])
-                item.report_error()
-                falhados += 1
-                mensagem = f"Item {resultado['lote_id']} barrado: {erros_formatados}"
-                print(mensagem)
-                logger.warning(mensagem)
-            else:
-                # Se a lista estiver vazia, passou liso em todas as regras!
-                item.report_done()
-                processados += 1
-                logger.info("Item %s processado com sucesso.", resultado["lote_id"])
-                
-        except ValueError as erro:
-            # Cai aqui apenas se for o erro crasso da RN02 (falta de lote_id)
-            item.report_error()
-            mensagem_erro = f"Item sem lote_id reprovado na validação: {str(erro)}"
-            print(mensagem_erro)
-            falhados += 1
-            logger.warning(mensagem_erro)
-
-    # Relatório final em JSON, postado como artefato
-    resumo = {
-        "data_execucao": datetime.now().isoformat(),
-        "total_itens": total,
-        "processados": processados,
-        "falhados": falhados,
-        "divergencias": resumo_divergencias,
-    }
-    caminho_resumo = LOGS_DIR / "resumo_execucao.json"
-    caminho_resumo.write_text(json.dumps(resumo, indent=2, ensure_ascii=False), encoding="utf-8")
-
-    if task_id:
-        maestro.post_artifact(
-            task_id=task_id,
-            artifact_name="resumo_execucao.json",
-            filepath=str(caminho_resumo),
+        logger.info(
+            "Auditoria concluída: %d processados, %d falhados de %d total.",
+            processados,
+            falhados,
+            total,
         )
-        maestro.finish_task(
-            task_id=task_id,
-            status=AutomationTaskFinishStatus.SUCCESS,
-            message="Auditoria de lotes concluída.",
-            total_items=total,
-            processed_items=processados,
-            failed_items=falhados,
-        )
+    except Exception as erro:
+        logger.exception("Falha na auditoria: %s", erro)
+        if maestro is not None and task_id:
+            try:
+                maestro.alert(
+                    task_id=task_id,
+                    title="Falha na execução",
+                    message=str(erro),
+                    alert_type=AlertType.ERROR,
+                )
+            except Exception:
+                logger.exception("Não foi possível gerar o alerta de falha.")
 
-    logger.info("Auditoria concluída: %d processados, %d falhados de %d total.", processados, falhados, total)
+            try:
+                falhados_reportados = max(falhados, total - processados)
+                maestro.finish_task(
+                    task_id=task_id,
+                    status=AutomationTaskFinishStatus.FAILED,
+                    message=f"Auditoria interrompida: {erro}",
+                    total_items=total,
+                    processed_items=processados,
+                    failed_items=falhados_reportados,
+                )
+            except Exception:
+                logger.exception("Não foi possível reportar a falha ao Maestro.")
+        raise
 
 
 if __name__ == "__main__":

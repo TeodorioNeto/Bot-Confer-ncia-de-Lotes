@@ -11,9 +11,11 @@ import logging
 from src.base_referencia import carregar_base_referencia, verificar_lote_na_base
 from src.validacao import (
     COLUNAS_OBRIGATORIAS,
-    STATUS_REPROVADO,
     ERRO_RN07,
+    SINONIMOS_STATUS,
+    STATUS_REPROVADO,
     normalizar_status,
+    valida_data,
     valida_status,
 )
 
@@ -39,45 +41,104 @@ def processar_item(item, base_referencia):
                     seguir pro próximo).
     """
     lote_id = item.get_value("lote_id")
-
-    if not lote_id or not str(lote_id).strip():
-        raise ValueError("lote_id vazio (RN02)")
-
     divergencias = []
+    avisos = []
+    analises = []
 
-    # RN02: demais campos obrigatórios
+    def registrar(regra, problema, acao, categoria="divergencia"):
+        analises.append(
+            {
+                "regra": regra,
+                "problema": problema,
+                "acao": acao,
+                "categoria": categoria,
+            }
+        )
+        texto = f"{regra}: {problema}"
+        if categoria == "aviso":
+            avisos.append(texto)
+        else:
+            divergencias.append(texto)
+
+    # RN02: todos os campos obrigatórios.
     campos_vazios = [
         coluna
         for coluna in COLUNAS_OBRIGATORIAS
-        if coluna != "lote_id" and _valor_vazio(item.get_value(coluna))
+        if _valor_vazio(item.get_value(coluna))
     ]
     if campos_vazios:
-        divergencias.append(f"RN02: campos vazios: {', '.join(campos_vazios)}")
+        registrar(
+            "RN02",
+            f"Campos obrigatórios vazios: {', '.join(campos_vazios)}",
+            f"Preencher os campos obrigatórios: {', '.join(campos_vazios)}",
+        )
 
     # RN03: lote existe na base de referência
-    if not verificar_lote_na_base(lote_id, base_referencia):
-        divergencias.append("RN03: lote_id não existe na base de referência")
+    if not _valor_vazio(lote_id) and not verificar_lote_na_base(
+        str(lote_id), base_referencia
+    ):
+        registrar(
+            "RN03",
+            "lote_id não existe na base de referência",
+            "Corrigir o lote_id ou cadastrar o lote na base de referência",
+        )
 
     # RN04/RN05: status válido e normalizado
     status = item.get_value("status")
-    try:
-        if not valida_status(status):
-            divergencias.append(
-                f"RN04/RN05: status '{status}' não reconhecível (normalizado: '{normalizar_status(status)}')"
+    if not _valor_vazio(status):
+        status_original = str(status).strip().upper()
+        status_normalizado = normalizar_status(status)
+        if status_original in SINONIMOS_STATUS:
+            registrar(
+                "RN05",
+                f"Status '{status}' não padronizado",
+                f"Normalizar o status para '{status_normalizado}'",
+                categoria="aviso",
             )
-    except ValueError:
-        pass  # já reportado como campo vazio na RN02, se "status" estiver na lista
+        if not valida_status(status):
+            registrar(
+                "RN04",
+                f"Status '{status}' não pertence ao domínio permitido",
+                "Corrigir para APROVADO, REPROVADO ou PENDENTE",
+            )
 
-   # RN07: observação obrigatória quando reprovado
+    # RN06: data no formato oficial.
+    valor_data = item.get_value("data")
+    if not _valor_vazio(valor_data) and not valida_data(valor_data):
+        registrar(
+            "RN06",
+            f"Data '{valor_data}' fora do formato DD/MM/AAAA",
+            "Corrigir a data para o formato DD/MM/AAAA",
+        )
+
+    # RN07: observação obrigatória quando reprovado.
     observacao = item.get_value("observacao")
     status_normalizado = normalizar_status(status)
-    
-    # Agora cobramos a observação baseada no status oficial normalizado
-    if status_normalizado == "REPROVADO" and _valor_vazio(observacao):
-        divergencias.append(f"RN07: {ERRO_RN07}")
+    status_original = str(status).strip().upper() if status else ""
+    if (
+        status_original in STATUS_REPROVADO
+        or status_normalizado == "REPROVADO"
+    ) and _valor_vazio(observacao):
+        registrar(
+            "RN07",
+            ERRO_RN07,
+            "Preencher a observação com a justificativa da reprovação",
+        )
 
-    return {"lote_id": lote_id, "divergencias": divergencias}
+    return {
+        "lote_id": lote_id,
+        "divergencias": divergencias,
+        "avisos": avisos,
+        "analises": analises,
+    }
 
 
 def _valor_vazio(valor):
     return valor is None or str(valor).strip() == ""
+
+
+if __name__ == "__main__":
+    # Ponto de entrada exigido pelo BotCity Runner.
+    from main import main
+
+    main()

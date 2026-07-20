@@ -118,7 +118,12 @@ if __name__ == "__main__":
 import pytest
 import openpyxl
 from src.base_referencia import verificar_lote_na_base, carregar_base_referencia
-from src.validacao import normalizar_status, valida_observacao_reprovado, valida_status
+from src.validacao import (
+    normalizar_status,
+    valida_data,
+    valida_observacao_reprovado,
+    valida_status,
+)
 from src.relatorio import gerar_relatorio_divergencias
 
 @pytest.fixture
@@ -208,6 +213,21 @@ def test_valida_status_vazio_gera_erro():
 
     with pytest.raises(ValueError):
         valida_status(None)
+
+
+def test_valida_data_no_formato_oficial():
+    assert valida_data("14/06/2026") is True
+
+
+def test_reprova_data_com_separador_incorreto():
+    assert valida_data("15-06-2026") is False
+
+
+def test_data_vazia_gera_erro():
+    with pytest.raises(ValueError):
+        valida_data(None)
+
+
 def test_gera_relatorio_com_divergencias(tmp_path):
     divergencias = [
         {"linha": 6, "lote_id": "LG-2026-00103", "regra": "RN03", "problema": "lote_id não existe na base de referência"},
