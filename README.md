@@ -2,8 +2,6 @@
 
 Bot corporativo para conferir lotes de qualidade, identificar divergencias na planilha de inspecao e preencher automaticamente as abas de evidencia da planilha final. O projeto pode ser executado localmente ou pelo BotCity Maestro, com DataPool, Credentials Vault, logs e evidencias da execucao.
 
-Este repositorio adapta o exercicio integrado de BotCity para o cenario de sala "verificacao de lotes". Por isso, o fluxo usa `lote_id` e planilha `.xlsx` em vez de CPF e CSV.
-
 ## Funcionalidades
 
 - valida a estrutura e os campos obrigatorios da planilha;
