@@ -1,128 +1,144 @@
 """
-bot.py - Entry point do Bot de Conferência de Lotes.
+bot.py - Performer do Auditor de Lotes.
 
-Executa a validação de registros de inspeção aplicando as regras de
-negócio RN01-RN07, usando a planilha oficial de inspeção como entrada
-e a base de referência para checagem de lotes.
+Recebe um item por vez (vindo do DataPool no Maestro, ou de um objeto
+compatível localmente) e aplica RN02, RN03, RN04, RN05 e RN07. RN01
+(estrutura da planilha inteira) é validada uma vez só, no dispatcher,
 """
 
 import logging
-import re
-from pathlib import Path
-
-import openpyxl
 
 from src.base_referencia import carregar_base_referencia, verificar_lote_na_base
-from src.validacao import normalizar_status, valida_status
-from src.config import ARQUIVO_INSPECAO, ABA_INSPECAO
+from src.validacao import (
+    COLUNAS_OBRIGATORIAS,
+    ERRO_RN07,
+    SINONIMOS_STATUS,
+    STATUS_REPROVADO,
+    normalizar_status,
+    valida_data,
+    valida_status,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-LOTE_ID_PATTERN = re.compile(r"^LG-\d{4}-\d{5}$")
 
-
-def processar_inspecao(caminho_arquivo=None):
+def processar_item(item, base_referencia):
     """
-    Processa a planilha de inspeção, aplicando as regras de negócio
-    disponíveis, e retorna a lista de divergências encontradas.
+    Aplica as regras de negócio a um único item (uma linha da planilha).
+
+    Args:
+        item: objeto com .get_value(chave) - DataPoolEntry real no
+              Maestro, ou um fake compatível nos testes locais.
+        base_referencia: set de lote_id cadastrados (vem de
+                          carregar_base_referencia()).
+
+    Returns:
+        dict com lote_id e a lista de divergências encontradas.
+
+    Raises:
+        ValueError: se lote_id estiver vazio - erro de item (o
+                    Performer deve marcar como erro no DataPool e
+                    seguir pro próximo).
     """
-    caminho_arquivo = Path(caminho_arquivo or ARQUIVO_INSPECAO)
-
-    base_referencia = carregar_base_referencia()
-
-    wb = openpyxl.load_workbook(caminho_arquivo, read_only=True, data_only=True)
-    ws = wb[ABA_INSPECAO]
-
-    linhas = ws.iter_rows(values_only=True)
-    next(linhas)  # linha de título
-    next(linhas)  # linha de metadados (arquivo, sistema, registros)
-    cabecalho = next(linhas)
-    idx_lote = cabecalho.index("lote_id")
-    idx_status = cabecalho.index("status")
-
+    lote_id = item.get_value("lote_id")
     divergencias = []
+    avisos = []
+    analises = []
 
-    for numero_linha, linha in enumerate(linhas, start=4):
-        # Linha totalmente vazia = fim real dos dados (resto é formatação sobrando)
-        if linha is None or all(valor is None for valor in linha):
-            break
+    def registrar(regra, problema, acao, categoria="divergencia"):
+        analises.append(
+            {
+                "regra": regra,
+                "problema": problema,
+                "acao": acao,
+                "categoria": categoria,
+            }
+        )
+        texto = f"{regra}: {problema}"
+        if categoria == "aviso":
+            avisos.append(texto)
+        else:
+            divergencias.append(texto)
 
-        lote_id = linha[idx_lote] if idx_lote < len(linha) else None
-        status = linha[idx_status] if idx_status < len(linha) else None
+    # RN02: todos os campos obrigatórios.
+    campos_vazios = [
+        coluna
+        for coluna in COLUNAS_OBRIGATORIAS
+        if _valor_vazio(item.get_value(coluna))
+    ]
+    if campos_vazios:
+        registrar(
+            "RN02",
+            f"Campos obrigatórios vazios: {', '.join(campos_vazios)}",
+            f"Preencher os campos obrigatórios: {', '.join(campos_vazios)}",
+        )
 
-        # Ignora linhas de rodapé/legenda/exemplo (não são registros reais)
-        if lote_id and not LOTE_ID_PATTERN.match(str(lote_id).strip()):
-            continue
+    # RN03: lote existe na base de referência
+    if not _valor_vazio(lote_id) and not verificar_lote_na_base(
+        str(lote_id), base_referencia
+    ):
+        registrar(
+            "RN03",
+            "lote_id não existe na base de referência",
+            "Corrigir o lote_id ou cadastrar o lote na base de referência",
+        )
 
-        # RN02: lote_id obrigatório
-        if not lote_id:
-            divergencias.append(
-                {"linha": numero_linha, "lote_id": None, "regra": "RN02", "problema": "lote_id vazio"}
+    # RN04/RN05: status válido e normalizado
+    status = item.get_value("status")
+    if not _valor_vazio(status):
+        status_original = str(status).strip().upper()
+        status_normalizado = normalizar_status(status)
+        if status_original in SINONIMOS_STATUS:
+            registrar(
+                "RN05",
+                f"Status '{status}' não padronizado",
+                f"Normalizar o status para '{status_normalizado}'",
+                categoria="aviso",
             )
-            continue
-
-        # RN03: lote precisa existir na base de referência
-        if not verificar_lote_na_base(lote_id, base_referencia):
-            divergencias.append(
-                {
-                    "linha": numero_linha,
-                    "lote_id": lote_id,
-                    "regra": "RN03",
-                    "problema": "lote_id não existe na base de referência",
-                }
+        if not valida_status(status):
+            registrar(
+                "RN04",
+                f"Status '{status}' não pertence ao domínio permitido",
+                "Corrigir para APROVADO, REPROVADO ou PENDENTE",
             )
 
-        # RN04/RN05: status precisa ser válido (após normalização de sinônimos)
-        try:
-            status_ok = valida_status(status)
-            if not status_ok:
-                divergencias.append(
-                    {
-                        "linha": numero_linha,
-                        "lote_id": lote_id,
-                        "regra": "RN04/RN05",
-                        "problema": f"status '{status}' não reconhecível (normalizado: '{normalizar_status(status)}')",
-                    }
-                )
-        except ValueError:
-            divergencias.append(
-                {"linha": numero_linha, "lote_id": lote_id, "regra": "RN02", "problema": "status vazio"}
-            )
+    # RN06: data no formato oficial.
+    valor_data = item.get_value("data")
+    if not _valor_vazio(valor_data) and not valida_data(valor_data):
+        registrar(
+            "RN06",
+            f"Data '{valor_data}' fora do formato DD/MM/AAAA",
+            "Corrigir a data para o formato DD/MM/AAAA",
+        )
 
-      
-    wb.close()
-    logging.info("Processamento concluído: %d divergência(s) encontrada(s).", len(divergencias))
-    return divergencias
+    # RN07: observação obrigatória quando reprovado.
+    observacao = item.get_value("observacao")
+    status_normalizado = normalizar_status(status)
+    status_original = str(status).strip().upper() if status else ""
+    if (
+        status_original in STATUS_REPROVADO
+        or status_normalizado == "REPROVADO"
+    ) and _valor_vazio(observacao):
+        registrar(
+            "RN07",
+            ERRO_RN07,
+            "Preencher a observação com a justificativa da reprovação",
+        )
+
+    return {
+        "lote_id": lote_id,
+        "divergencias": divergencias,
+        "avisos": avisos,
+        "analises": analises,
+    }
+
+
+def _valor_vazio(valor):
+    return valor is None or str(valor).strip() == ""
 
 
 if __name__ == "__main__":
-    resultado = processar_inspecao()
-    for d in resultado:
-        print(d)
-import argparse
-import logging
+    # Ponto de entrada exigido pelo BotCity Runner.
+    from main import main
 
-from src.validacao import carregar_planilha, valida_campos_obrigatorios, valida_estrutura
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Valida a planilha de conferencia de lotes.")
-    parser.add_argument("arquivo", help="Caminho do arquivo .xlsx a ser validado")
-    args = parser.parse_args()
-
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-    df = carregar_planilha(args.arquivo)
-    estrutura_ok = valida_estrutura(df=df)
-    campos_ok = valida_campos_obrigatorios(df=df) if estrutura_ok else False
-
-    if estrutura_ok and campos_ok:
-        print("Planilha valida para RN01 e RN02.")
-        return 0
-
-    print("Planilha invalida para RN01/RN02.")
-    return 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
