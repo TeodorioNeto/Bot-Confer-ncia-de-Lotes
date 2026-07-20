@@ -17,8 +17,10 @@ from src.config import CAMINHO_PLANILHA_PADRAO
 
 
 STATUS_VALIDOS = {"APROVADO", "REPROVADO", "PENDENTE"}
-SINONIMOS_STATUS = {"OK": "APROVADO", "NOK": "REPROVADO"}
-STATUS_REPROVADO = {"REPROVADO", "NOK"}
+# Adicionado o 'REPROV.' aqui:
+SINONIMOS_STATUS = {"OK": "APROVADO", "NOK": "REPROVADO", "REPROV.": "REPROVADO"}
+# Adicionado o 'REPROV.' aqui também:
+STATUS_REPROVADO = {"REPROVADO", "NOK", "REPROV."}
 ERRO_RN07 = "Reprovacao sem Justificativa Obrigatoria"
 
 COLUNAS_ESTRUTURA = [

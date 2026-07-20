@@ -1,9 +1,8 @@
-"""
-dispatcher.py - le a planilha de inspecao e envia cada linha como item
-pro DataPool. 
-"""
+import sys
+import os
 import logging
 import re
+from dotenv import load_dotenv
 from botcity.maestro import BotMaestroSDK, DataPoolEntry
 from config import ARQUIVO_INSPECAO, DATAPOOL_LABEL
 
@@ -13,10 +12,36 @@ logger = logging.getLogger(__name__)
 LOTE_ID_PATTERN = re.compile(r"^LG-\d{4}-\d{5}$")
 
 
+def conectar_maestro():
+    """
+    Lógica inteligente de conexão: Local x Runner
+    """
+    maestro = BotMaestroSDK.from_sys_args()
+    
+    # O Runner injeta pelo menos 8 argumentos (-server, -login, -key, -task_id).
+    # Se tiver menos que isso (geralmente só 1), estamos rodando manualmente no VS Code.
+    if len(sys.argv) < 2:
+        logger.info("Execução Local: Carregando credenciais do arquivo .env...")
+        load_dotenv()
+        if len(sys.argv) < 2:
+            logger.info("Execução Local: Carregando credenciais do arquivo .env...")
+            load_dotenv()
+            maestro.login(
+                server=os.getenv("MAESTRO_SERVER"),
+                login=os.getenv("MAESTRO_LOGIN"),
+                key=os.getenv("MAESTRO_KEY")
+            )
+    else:
+        logger.info("Execução via Runner: Credenciais injetadas automaticamente.")
+        
+    return maestro
+
+
 def popular_fila():
     import openpyxl
 
-    maestro = BotMaestroSDK.from_sys_args()
+    # Usa a nossa função inteligente em vez de instanciar direto
+    maestro = conectar_maestro()
     datapool = maestro.get_datapool(DATAPOOL_LABEL)
 
     wb = openpyxl.load_workbook(ARQUIVO_INSPECAO, read_only=True, data_only=True)
