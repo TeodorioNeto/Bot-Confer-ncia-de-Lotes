@@ -1,0 +1,22 @@
+services:
+  auditor-lotes:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: auditor-lotes:local
+
+    env_file:
+      - .env
+
+    environment:
+      EXECUTION_ID: ${EXECUTION_ID:-docker-local}
+      BOT_ID: ${BOT_ID:-auditor-lotes}
+      MAESTRO_ENABLED: ${MAESTRO_ENABLED:-false}
+      VAULT_ENABLED: ${VAULT_ENABLED:-false}
+
+    volumes:
+      - ./dados_entrada:/app/dados_entrada:ro
+      - ./logs:/app/logs
+
+    command: ["python", "main.py"]

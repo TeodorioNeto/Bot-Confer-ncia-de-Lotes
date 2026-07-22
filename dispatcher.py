@@ -7,7 +7,6 @@ from botcity.maestro import BotMaestroSDK, DataPoolEntry
 from config import ARQUIVO_INSPECAO, DATAPOOL_LABEL
 from src.validacao import valida_estrutura
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 LOTE_ID_PATTERN = re.compile(r"^LG-\d{4}-\d{5}$")
