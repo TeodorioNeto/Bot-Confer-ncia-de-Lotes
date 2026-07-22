@@ -25,6 +25,13 @@ from bot import processar_item
 from dispatcher import popular_fila
 from src.analise_formulario import analisar_e_preencher_formulario
 from src.base_referencia import carregar_base_referencia
+from src.web_automation import preencher_formulario
+
+def main():
+    print("Iniciando automação Playwright...")
+    preencher_formulario()
+    print("Automação concluída com sucesso!")
+
 
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
