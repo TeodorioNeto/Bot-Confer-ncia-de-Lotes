@@ -244,21 +244,3 @@ dados_entrada/inspecao_lotes_dia.xlsx
 ```
 
 O arquivo `.zip` e artefato de build e nao deve ser commitado. Quando necessario, gere o pacote localmente e suba o zip pelo painel do Maestro.
-
-## Seguranca
-
-- nao versione o arquivo `.env`;
-- nao inclua planilhas reais ou dados pessoais nos commits;
-- nao registre senhas, chaves ou tokens nos logs;
-- mantenha a credencial do ERP exclusivamente no Credentials Vault;
-- use valores ficticios em testes e demonstracoes.
-
-## Tecnologias
-
-- Python;
-- BotCity Maestro SDK;
-- BotCity DataPool;
-- BotCity Credentials Vault;
-- OpenPyXL;
-- python-dotenv;
-- pytest.
