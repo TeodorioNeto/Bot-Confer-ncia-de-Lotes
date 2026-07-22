@@ -174,6 +174,26 @@ Durante a execucao, o bot:
 5. consome os itens do DataPool;
 6. publica as evidencias;
 7. finaliza a tarefa com sucesso ou falha.
+## Execucao com Docker
+
+Construa a imagem:
+
+```powershell
+docker compose build
+```
+
+Execute o bot:
+
+```powershell
+docker compose run --rm auditor-lotes
+```
+
+A pasta `dados_entrada/` e montada no container em modo somente leitura.
+Os logs e relatorios gerados em `/app/logs` sao persistidos na pasta
+`logs/` da maquina host.
+
+As variaveis `EXECUTION_ID` e `BOT_ID` identificam cada execucao nos
+logs estruturados em JSON.
 
 ## Saidas e evidencias
 

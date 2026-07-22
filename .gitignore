@@ -40,3 +40,6 @@ Thumbs.db
 
 # Artefatos locais de execucao
 logs/
+
+# Zips
+*.zip

@@ -20,21 +20,14 @@ from config import (
     DATAPOOL_LABEL,
     LOGS_DIR,
 )
+from src.logging_config import configurar_logging
 from vault_client import obter_credencial_erp
 from bot import processar_item
 from dispatcher import popular_fila
 from src.analise_formulario import analisar_e_preencher_formulario
 from src.base_referencia import carregar_base_referencia
 
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s: %(message)s",
-    handlers=[
-        logging.FileHandler(LOGS_DIR / "execucao.log", encoding="utf-8"),
-        logging.StreamHandler(),
-    ],
-)
+configurar_logging(LOGS_DIR)
 logger = logging.getLogger(__name__)
 
 

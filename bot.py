@@ -6,7 +6,6 @@ compatível localmente) e aplica RN02, RN03, RN04, RN05 e RN07. RN01
 (estrutura da planilha inteira) é validada uma vez só, no dispatcher,
 """
 
-import logging
 
 from src.base_referencia import carregar_base_referencia, verificar_lote_na_base
 from src.validacao import (
@@ -18,8 +17,6 @@ from src.validacao import (
     status_ambiguo,
     valida_status,
 )
-
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 def processar_item(item, base_referencia):
