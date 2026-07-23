@@ -26,9 +26,11 @@ from bot import processar_item
 from dispatcher import popular_fila
 from src.analise_formulario import analisar_e_preencher_formulario
 from src.base_referencia import carregar_base_referencia
+from src.web_automation import preencher_formulario
 
 configurar_logging(LOGS_DIR)
 logger = logging.getLogger(__name__)
+
 
 
 def main():
@@ -67,6 +69,10 @@ def main():
 
         if VAULT_ENABLED and conectado_maestro:
             obter_credencial_erp(maestro)
+
+        # Executa a automação Playwright na interface Web
+        logger.info("Executando automação Web via Playwright...")
+        preencher_formulario()
 
         # O Dispatcher sempre precede o Performer quando há conexão com o Maestro.
         if conectado_maestro:
