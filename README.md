@@ -43,8 +43,12 @@ Bot corporativo para conferir lotes de qualidade, identificar divergencias na pl
 |   |-- analise_formulario.py
 |   |-- base_referencia.py
 |   |-- config.py
+|   |-- logging_config.py
 |   |-- relatorio.py
-|   `-- validacao.py
+|   |-- validacao.py
+|   |-- web_automation.py
+|   |-- web_automation_playwright.py
+|   `-- web_automation_selenium.py
 |-- tests/
 |   |-- test_analise_formulario.py
 |   `-- test_validacao.py
@@ -62,6 +66,12 @@ Instale as dependencias:
 
 ```powershell
 python -m pip install -r requirements.txt
+```
+
+Para executar a versao Playwright pela primeira vez, instale tambem o navegador usado pela biblioteca:
+
+```powershell
+python -m playwright install chromium
 ```
 
 ## Configuracao local
@@ -159,6 +169,34 @@ Para simular localmente o processamento item a item:
 
 ```powershell
 python testar_local.py
+```
+
+### Automacao web local
+
+O projeto mantem duas versoes da automacao web do formulario `doc.html`:
+
+- `src/web_automation_playwright.py`, usando Playwright;
+- `src/web_automation_selenium.py`, usando Selenium WebDriver.
+
+O arquivo `src/web_automation.py` funciona como ponto de entrada comum. Por padrao, ele executa a versao Playwright:
+
+```powershell
+python -m src.web_automation
+```
+
+Para executar a versao Selenium:
+
+```powershell
+$env:WEB_AUTOMATION_DRIVER='selenium'
+$env:SELENIUM_HEADLESS='true'
+python -m src.web_automation
+```
+
+Tambem e possivel executar cada versao diretamente:
+
+```powershell
+python -m src.web_automation_playwright
+python -m src.web_automation_selenium
 ```
 
 ### Execucao pelo Runner
