@@ -19,6 +19,8 @@ from config import (
     ARQUIVO_INSPECAO,
     DATAPOOL_LABEL,
     LOGS_DIR,
+    WEB_AUTOMATION_DRIVER,
+    WEB_AUTOMATION_ENABLED,
 )
 from src.logging_config import configurar_logging
 from vault_client import obter_credencial_erp
@@ -26,7 +28,7 @@ from bot import processar_item
 from dispatcher import popular_fila
 from src.analise_formulario import analisar_e_preencher_formulario
 from src.base_referencia import carregar_base_referencia
-from src.web_automation import preencher_formulario
+from src.web_automation import montar_dados_lote, preencher_formulario
 
 configurar_logging(LOGS_DIR)
 logger = logging.getLogger(__name__)
@@ -36,6 +38,7 @@ logger = logging.getLogger(__name__)
 def main():
     maestro = None
     task_id = None
+    credencial_erp = None
     total = processados = falhados = 0
     try:
         maestro = BotMaestroSDK.from_sys_args()
@@ -68,11 +71,7 @@ def main():
             )
 
         if VAULT_ENABLED and conectado_maestro:
-            obter_credencial_erp(maestro)
-
-        # Executa a automação Playwright na interface Web
-        logger.info("Executando automação Web via Playwright...")
-        preencher_formulario()
+            credencial_erp = obter_credencial_erp(maestro)
 
         # O Dispatcher sempre precede o Performer quando há conexão com o Maestro.
         if conectado_maestro:
@@ -111,10 +110,40 @@ def main():
                         " | ".join(resultado["divergencias"]),
                     )
                 else:
+                    if WEB_AUTOMATION_ENABLED:
+                        try:
+                            logger.info(
+                                "Executando automacao web via %s para o lote %s.",
+                                WEB_AUTOMATION_DRIVER,
+                                resultado["lote_id"],
+                            )
+                            preencher_formulario(
+                                dados_lote=montar_dados_lote(item),
+                                credencial=credencial_erp,
+                            )
+                        except Exception as erro_web:
+                            item.report_error(
+                                error_type=ErrorType.SYSTEM,
+                                finish_message=f"Falha na automacao web: {erro_web}",
+                            )
+                            falhados += 1
+                            logger.exception(
+                                "Falha na automacao web do lote %s: %s",
+                                resultado["lote_id"],
+                                erro_web,
+                            )
+                            continue
+
                     item.report_done()
                     processados += 1
                     logger.info("Item %s processado.", resultado["lote_id"])
         else:
+            if WEB_AUTOMATION_ENABLED:
+                logger.warning(
+                    "Automacao web habilitada, mas o modo local por planilha nao "
+                    "executa a tela por item. Use o fluxo com DataPool para acionar "
+                    "Playwright ou Selenium por lote."
+                )
             total = resumo_analise["total_registros"]
             falhados = resumo_analise["registros_com_divergencia"]
             processados = total - falhados

@@ -10,6 +10,8 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
+from src.validacao import normalizar_status
+
 
 load_dotenv()
 
@@ -29,10 +31,11 @@ def criar_driver():
     return webdriver.Chrome(service=service, options=options)
 
 
-def preencher_formulario():
+def preencher_formulario(dados_lote=None, credencial=None):
     """Executa o preenchimento do formulario local usando Selenium."""
     caminho_doc = Path("doc.html").resolve()
     url = caminho_doc.as_uri()
+    dados_lote = dados_lote or {}
 
     driver = criar_driver()
     wait = WebDriverWait(driver, 10)
@@ -49,14 +52,40 @@ def preencher_formulario():
             EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']"))
         )
 
-        campo_lote.send_keys("LOTE-2026-0001")
-        Select(seletor_produto).select_by_index(1)
+        campo_lote.send_keys(str(dados_lote.get("lote_id") or ""))
+        _selecionar_produto(seletor_produto, dados_lote.get("produto"))
+        status_radio = _status_formulario(dados_lote.get("status"))
+        if status_radio != "Concluído":
+            status_concluido = wait.until(
+                EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, f"input[name='status'][value='{status_radio}']")
+                )
+            )
         status_concluido.click()
         botao_processar.click()
 
         wait.until(EC.visibility_of_element_located((By.ID, "alertSuccess")))
     finally:
         driver.quit()
+
+
+def _selecionar_produto(elemento_select, produto):
+    select = Select(elemento_select)
+    opcoes = [opcao.get_attribute("value") for opcao in select.options]
+    produto = str(produto or "").strip()
+    if produto in opcoes:
+        select.select_by_value(produto)
+    else:
+        select.select_by_index(1)
+
+
+def _status_formulario(status):
+    status_normalizado = normalizar_status(status)
+    if status_normalizado == "PENDENTE":
+        return "Pendente"
+    if status_normalizado == "APROVADO":
+        return "Concluído"
+    return "Em Processamento"
 
 
 if __name__ == "__main__":
