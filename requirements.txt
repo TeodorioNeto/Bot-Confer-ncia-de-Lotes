@@ -4,3 +4,5 @@ pytest
 botcity-maestro-sdk
 python-dotenv
 python-json-logger>=3.3,<4
+selenium
+webdriver-manager
