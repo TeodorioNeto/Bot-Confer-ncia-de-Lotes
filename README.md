@@ -89,6 +89,9 @@ MAESTRO_KEY=
 DATAPOOL_LABEL=FilaAuditoriaLotes
 CREDENCIAL_LABEL=credencial_erp
 ARQUIVO_INSPECAO=dados_entrada/inspecao_lotes_dia.xlsx
+
+WEB_AUTOMATION_ENABLED=false
+WEB_AUTOMATION_DRIVER=playwright
 ```
 
 Para usar os servicos do Maestro durante uma execucao local, informe as credenciais de acesso e altere `MAESTRO_ENABLED` para `true`. A senha do ERP nunca deve ser colocada no codigo nem no `.env`.
@@ -183,6 +186,8 @@ O arquivo `src/web_automation.py` funciona como ponto de entrada comum. Por padr
 ```powershell
 python -m src.web_automation
 ```
+
+No fluxo com BotCity/DataPool, a automacao web so roda quando `WEB_AUTOMATION_ENABLED=true`. Ela e acionada pelo Performer para cada lote sem divergencias de regra, antes de marcar o item como concluido no DataPool.
 
 Para executar a versao Selenium:
 
