@@ -13,19 +13,27 @@ def montar_dados_lote(item):
     return {campo: item.get_value(campo) for campo in COLUNAS_ESTRUTURA}
 
 
-def preencher_formulario(dados_lote=None, credencial=None, driver=None):
+def preencher_formulario(dados_lote=None, credencial=None, driver=None, screenshot_path=None):
     driver = (driver or os.getenv("WEB_AUTOMATION_DRIVER", "playwright")).lower()
     dados_lote = dados_lote or _dados_lote_demo()
 
     if driver == "selenium":
         from src.web_automation_selenium import preencher_formulario as preencher_selenium
 
-        return preencher_selenium(dados_lote=dados_lote, credencial=credencial)
+        return preencher_selenium(
+            dados_lote=dados_lote,
+            credencial=credencial,
+            screenshot_path=screenshot_path,
+        )
 
     if driver == "playwright":
         from src.web_automation_playwright import preencher_formulario as preencher_playwright
 
-        return preencher_playwright(dados_lote=dados_lote, credencial=credencial)
+        return preencher_playwright(
+            dados_lote=dados_lote,
+            credencial=credencial,
+            screenshot_path=screenshot_path,
+        )
 
     raise ValueError(
         "WEB_AUTOMATION_DRIVER deve ser 'playwright' ou 'selenium'. "

@@ -14,6 +14,7 @@ Bot corporativo para conferir lotes de qualidade, identificar divergencias na pl
 - publica e consome itens pelo DataPool `FilaAuditoriaLotes`;
 - recupera a credencial do ERP pelo Credentials Vault;
 - registra logs locais com data, hora e severidade;
+- gera screenshot por item processado pela automacao web;
 - publica o resumo JSON e a planilha analisada como artefatos no Maestro;
 - isola erros por item para que os registros seguintes continuem sendo processados.
 
@@ -127,7 +128,7 @@ Crie um DataPool com o nome:
 FilaAuditoriaLotes
 ```
 
-O Dispatcher envia uma linha da planilha por item. O Performer marca cada item como concluido ou com erro e continua consumindo a fila mesmo quando um registro apresenta divergencia.
+O Dispatcher envia uma linha da planilha por item e inclui o campo `screenshot` para registrar a evidencia visual. O Performer marca cada item como concluido ou com erro e continua consumindo a fila mesmo quando um registro apresenta divergencia.
 
 ### Credentials Vault
 
@@ -189,6 +190,14 @@ python -m src.web_automation
 
 No fluxo com BotCity/DataPool, a automacao web so roda quando `WEB_AUTOMATION_ENABLED=true`. Ela e acionada pelo Performer para cada lote sem divergencias de regra, antes de marcar o item como concluido no DataPool.
 
+Cada item processado pela automacao web gera um screenshot em:
+
+```text
+logs/screenshots/
+```
+
+O caminho do screenshot e registrado no resultado do item, no `resumo_execucao.json` e, quando a execucao ocorre pelo Runner, a imagem tambem e publicada como artefato no Maestro. A pasta de screenshots fica fora do Git pelo `.gitignore`.
+
 Para executar a versao Selenium:
 
 ```powershell
@@ -203,6 +212,16 @@ Tambem e possivel executar cada versao diretamente:
 python -m src.web_automation_playwright
 python -m src.web_automation_selenium
 ```
+
+Comparacao pratica:
+
+| Criterio | Playwright | Selenium |
+| --- | --- | --- |
+| Padrao do projeto | Sim | Alternativa de laboratorio |
+| Inicializacao | Mais direta, com navegador gerenciado pelo Playwright | Depende do ChromeDriver via `webdriver-manager` |
+| Esperas | `wait_for` e auto-wait dos locators | `WebDriverWait` com condicoes esperadas |
+| Velocidade percebida | Geralmente mais rapido no setup apos instalacao | Pode ser mais lento na primeira execucao por causa do driver |
+| Uso recomendado | Fluxo principal da automacao web local | Comparacao, compatibilidade WebDriver e estudo da Aula 18 |
 
 ### Execucao pelo Runner
 
@@ -246,9 +265,10 @@ Os arquivos gerados ficam na pasta `logs/`:
 | --- | --- |
 | `execucao.log` | Eventos da execucao com timestamp e severidade |
 | `resumo_execucao.json` | Totais, falhas e divergencias encontradas |
+| `screenshots/*.png` | Evidencias visuais geradas por item na automacao web |
 | `inspecao_lotes_dia_analisado.xlsx` | Copia da planilha com `Formulario_Analise`, `lotes_ambiguos` e `Resumo_Diario` preenchidos |
 
-Quando a execucao ocorre pelo Runner, o JSON e a planilha analisada tambem sao publicados como artefatos da tarefa no Maestro.
+Quando a execucao ocorre pelo Runner, o JSON, a planilha analisada e os screenshots gerados tambem sao publicados como artefatos da tarefa no Maestro.
 
 ## Testes
 
@@ -267,7 +287,7 @@ python -m unittest discover -s tests -p "test*.py"
 Resultado esperado no estado atual:
 
 ```text
-36 passed
+42 passed
 ```
 
 ## Pacote para BotCity Maestro

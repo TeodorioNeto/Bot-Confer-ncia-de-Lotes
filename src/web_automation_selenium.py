@@ -1,4 +1,5 @@
 import os
+import logging
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -11,9 +12,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 from src.validacao import normalizar_status
+from src.web_evidencias import montar_caminho_screenshot
 
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 def criar_driver():
@@ -31,16 +34,22 @@ def criar_driver():
     return webdriver.Chrome(service=service, options=options)
 
 
-def preencher_formulario(dados_lote=None, credencial=None):
+def preencher_formulario(dados_lote=None, credencial=None, screenshot_path=None):
     """Executa o preenchimento do formulario local usando Selenium."""
     caminho_doc = Path("doc.html").resolve()
     url = caminho_doc.as_uri()
     dados_lote = dados_lote or {}
+    caminho_screenshot = montar_caminho_screenshot(
+        dados_lote,
+        "selenium",
+        screenshot_path=screenshot_path,
+    )
 
     driver = criar_driver()
     wait = WebDriverWait(driver, 10)
 
     try:
+        logger.info("Iniciando automacao Selenium para lote %s.", dados_lote.get("lote_id"))
         driver.get(url)
 
         campo_lote = wait.until(EC.element_to_be_clickable((By.ID, "lote")))
@@ -65,6 +74,9 @@ def preencher_formulario(dados_lote=None, credencial=None):
         botao_processar.click()
 
         wait.until(EC.visibility_of_element_located((By.ID, "alertSuccess")))
+        driver.save_screenshot(str(caminho_screenshot))
+        logger.info("Screenshot Selenium gerado em %s.", caminho_screenshot)
+        return {"driver": "selenium", "screenshot": str(caminho_screenshot)}
     finally:
         driver.quit()
 

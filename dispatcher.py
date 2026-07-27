@@ -64,6 +64,7 @@ def popular_fila(maestro=None):
                 break
 
             item = dict(zip(cabecalho, linha))
+            item["screenshot"] = ""
             lote_id_bruto = item.get("lote_id")
             if lote_id_bruto and not LOTE_ID_PATTERN.match(
                 str(lote_id_bruto).strip()
