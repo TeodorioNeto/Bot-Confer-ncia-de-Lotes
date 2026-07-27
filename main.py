@@ -8,6 +8,7 @@ sem tentar processar nada.
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from botcity.maestro import BotMaestroSDK, AutomationTaskFinishStatus, AlertType, ErrorType
 from config import (
     MAESTRO_ENABLED,
@@ -117,10 +118,14 @@ def main():
                                 WEB_AUTOMATION_DRIVER,
                                 resultado["lote_id"],
                             )
-                            preencher_formulario(
+                            caminho_screenshot = item.get_value("screenshot") or None
+                            evidencia_web = preencher_formulario(
                                 dados_lote=montar_dados_lote(item),
                                 credencial=credencial_erp,
+                                screenshot_path=caminho_screenshot,
                             )
+                            resultado["web_automation"] = evidencia_web
+                            resultado["screenshot"] = evidencia_web.get("screenshot")
                         except Exception as erro_web:
                             item.report_error(
                                 error_type=ErrorType.SYSTEM,
@@ -174,6 +179,7 @@ def main():
                 artifact_name="inspecao_lotes_dia_analisado.xlsx",
                 filepath=str(caminho_planilha_analisada),
             )
+            _publicar_screenshots(maestro, task_id, resumo_divergencias)
             maestro.finish_task(
                 task_id=task_id,
                 status=AutomationTaskFinishStatus.SUCCESS,
@@ -215,6 +221,24 @@ def main():
             except Exception:
                 logger.exception("Não foi possível reportar a falha ao Maestro.")
         raise
+
+
+def _publicar_screenshots(maestro, task_id, resultados):
+    for indice, resultado in enumerate(resultados, start=1):
+        caminho = resultado.get("screenshot")
+        if not caminho:
+            continue
+
+        arquivo = Path(caminho)
+        if not arquivo.exists():
+            logger.warning("Screenshot registrado nao encontrado: %s", arquivo)
+            continue
+
+        maestro.post_artifact(
+            task_id=task_id,
+            artifact_name=f"screenshot_lote_{indice}.png",
+            filepath=str(arquivo),
+        )
 
 
 if __name__ == "__main__":

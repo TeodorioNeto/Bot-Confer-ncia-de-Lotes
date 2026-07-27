@@ -1,0 +1,27 @@
+import re
+from datetime import datetime
+from pathlib import Path
+
+from config import LOGS_DIR
+
+
+SCREENSHOTS_DIR = LOGS_DIR / "screenshots"
+
+
+def montar_caminho_screenshot(dados_lote, driver, screenshot_path=None):
+    """Monta um caminho padronizado para a evidencia visual do item."""
+    if screenshot_path:
+        caminho = Path(screenshot_path)
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+        return caminho
+
+    SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    lote_id = _nome_seguro(dados_lote.get("lote_id") or "lote-sem-id")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    return SCREENSHOTS_DIR / f"{timestamp}_{driver}_{lote_id}.png"
+
+
+def _nome_seguro(valor):
+    texto = str(valor).strip()
+    texto = re.sub(r"[^A-Za-z0-9_.-]+", "_", texto)
+    return texto[:80] or "lote-sem-id"
