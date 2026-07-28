@@ -7,4 +7,5 @@ python-json-logger>=3.3,<4
 playwright
 selenium
 webdriver-manager
-flask flask-cors
+flask 
+flask-cors
