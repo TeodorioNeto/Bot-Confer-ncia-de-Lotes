@@ -2,6 +2,13 @@
 
 Bot corporativo para conferir lotes de qualidade, identificar divergências na planilha de inspeção e preencher automaticamente as abas de evidência da planilha final. O projeto pode ser executado localmente ou pelo BotCity Maestro, com DataPool, Credentials Vault, logs e evidências da execução.
 
+## Autoria
+
+Projeto desenvolvido colaborativamente por:
+- **Mariane Oliveira**
+- **Teodorio Neto**
+- **Victor Breno**
+
 ## Funcionalidades
 
 - valida a estrutura e os campos obrigatórios da planilha;
@@ -160,6 +167,48 @@ O Dispatcher também pode ser executado de forma independente para apenas alimen
 
 ```powershell
 python dispatcher.py
+```
+
+## Arquitetura da Automação
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Maestro as BotCity Maestro
+    participant Dispatcher as Dispatcher (dispatcher.py)
+    participant DataPool as DataPool (FilaAuditoriaLotes)
+    participant Performer as Performer / Bot (bot.py)
+    participant Vault as Credentials Vault
+    participant Web as Automação Web (Playwright/Selenium)
+    participant Logs as Pasta Logs & Planilha Analisada
+
+    Note over Maestro, Logs: Início do Fluxo Corporativo de Auditoria
+
+    Maestro->>Dispatcher: Aciona execução inicial (main.py)
+    Dispatcher->>Dispatcher: Valida pasta e planilha (Fail Fast)
+    Dispatcher->>Vault: Recupera credenciais do ERP (se habilitado)
+    Vault-->>Dispatcher: Retorna credenciais seguras
+
+    Dispatcher->>Dispatcher: Analisa planilhas e valida RN01 a RN07
+    Dispatcher->>DataPool: Publica itens da auditoria (com rotas e screenshots)
+
+    loop Para cada item na Fila
+        Maestro->>Performer: Aciona Performer para consumir item
+        Performer->>DataPool: Consome próximo lote da fila
+        DataPool-->>Performer: Dados do lote e regras associadas
+
+        alt Web Automation Habilitada (WEB_AUTOMATION_ENABLED=true)
+            Performer->>Web: Aciona driver (Playwright/Selenium)
+            Web->>Web: Simula preenchimento no sistema/HTML
+            Web-->>Performer: Gera screenshot da evidência visual
+        end
+
+        Performer->>Logs: Registra logs estruturados e atualiza abas (Formulário/Resumo)
+        Performer->>Maestro: Marca item como concluído (ou reporta erro isolado)
+    end
+
+    Maestro->>Logs: Publica JSON de resumo e Planilha analisada como Artefatos
+    Note over Maestro, Logs: Auditoria Concluída com Sucesso
 ```
 
 ## Execução local
