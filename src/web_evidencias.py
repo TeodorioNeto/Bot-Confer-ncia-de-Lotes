@@ -29,8 +29,9 @@ def _nome_seguro(valor):
 
 
 def obter_url_automacao():
-    """Retorna a URL da tela web; usa o simulador apenas como fallback local."""
+    """Retorna a URL da tela web; usa o doc.html como fallback local."""
     if WEB_AUTOMATION_URL:
         return WEB_AUTOMATION_URL
 
-    return (BASE_DIR / "simulador_inspecao_lotes.html").resolve().as_uri()
+    # Aponta para doc.html em vez de simulador_inspecao_lotes.html
+    return (BASE_DIR / "doc.html").resolve().as_uri()

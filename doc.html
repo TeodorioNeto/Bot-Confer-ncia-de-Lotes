@@ -1,23 +1,62 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cadastro de Lotes de Produção</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <title>LG Electronics - Painel de Inspeção e Conferência de Lotes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <style>
+    /* Variáveis - Modo Claro Corporativo (Padrão) */
+    :root {
+      --lg-red: #A50034;
+      --lg-red-hover: #c4003e;
+      --bg-color: #f3f4f6;
+      --card-bg: #ffffff;
+      --input-bg: #f9fafb;
+      --text-main: #1f2937;
+      --text-secondary: #6b7280;
+      --border-card: rgba(165, 0, 52, 0.25);
+      --border-subtle: rgba(0, 0, 0, 0.08);
+      --glow-red: rgba(165, 0, 52, 0.06);
+      
+      --terminal-bg: #1e1e2e;
+      --terminal-header: #e5e7eb;
+      --terminal-text: #d1d5db;
+      --terminal-border: rgba(0, 0, 0, 0.1);
+      --radio-bg: #f3f4f6;
+    }
+
+    /* Variáveis - Modo Dark */
+    [data-theme="dark"] {
+      --bg-color: #0b0c1b;
+      --card-bg: #120e24;
+      --input-bg: #0d0a1a;
+      --text-main: #ffffff;
+      --text-secondary: #9ca3af;
+      --border-card: rgba(165, 0, 52, 0.5);
+      --border-subtle: rgba(255, 255, 255, 0.1);
+      --glow-red: rgba(165, 0, 52, 0.2);
+      
+      --terminal-bg: #080612;
+      --terminal-header: #120e24;
+      --terminal-text: #a9b7c6;
+      --terminal-border: rgba(165, 0, 52, 0.3);
+      --radio-bg: #0d0a1a;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
       font-family: 'Inter', sans-serif;
+      transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
     }
 
     body {
-      background-color: #0b0c1b;
-      color: #ffffff;
+      background-color: var(--bg-color);
+      color: var(--text-main);
       display: flex;
       justify-content: center;
       align-items: center;
@@ -25,96 +64,243 @@
       padding: 20px;
     }
 
-    .container {
+    .main-wrapper {
       width: 100%;
-      max-width: 480px;
-      background-color: #120e24;
-      border-radius: 12px;
-      border: 1px solid #ff007f;
-      box-shadow: 0 0 25px rgba(255, 0, 127, 0.25);
-      padding: 30px;
+      max-width: 1050px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
     }
 
-    /* Cabeçalho */
+    @media (max-width: 860px) {
+      .main-wrapper {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card-container {
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      border: 1px solid var(--border-card);
+      box-shadow: 0 4px 20px var(--glow-red);
+      padding: 25px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Cabeçalho Alinhado */
     .app-header {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 15px;
-      margin-bottom: 25px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border-subtle);
     }
 
-    .app-logo {
-      width: 42px;
-      height: 42px;
-      border: 1px solid #e056fd;
+    .brand-container {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex: 1;
+    }
+
+    /* Estilo da sua imagem PNG sem fundo */
+    .lg-logo-img {
+      height: 54px;
+      width: auto;
+      max-width: 200px;
+      object-fit: contain;
+      object-position: left;
+      flex-shrink: 0;
+      transition: filter 0.3s ease;
+    }
+
+    /* TRUQUE PARA O MODO ESCURO: 
+       Cria um contorno de luz branca suave e aumenta o brilho para as letras cinzas 
+       destacarem no fundo escuro, mantendo o vermelho da LG perfeito! */
+    [data-theme="dark"] .lg-logo-img {
+      filter: brightness(1.5); /* Aumenta o brilho das letras para destacar no fundo preto, mas sem contorno/glow */
+    }
+
+    .header-divider {
+      width: 1px;
+      height: 44px;
+      background-color: var(--border-subtle);
+      flex-shrink: 0;
+    }
+
+    .header-titles {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .app-title-main {
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.2px;
+      line-height: 1.2;
+    }
+
+    .app-subtitle {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+
+    /* Switch Interruptor de Tema (Dark/Light) */
+    .theme-switch-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .theme-icon {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 22px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #374151;
+      transition: .3s;
+      border-radius: 22px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--lg-red);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+
+    /* QA Tools / Painel de Orquestração */
+    .qa-tools {
+      margin-bottom: 20px;
+      padding: 12px;
+      background-color: rgba(165, 0, 52, 0.06);
+      border: 1px dashed var(--border-card);
       border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .qa-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--lg-red);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .qa-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-qa {
+      flex: 1;
+      background: transparent;
+      border: 1px solid var(--lg-red);
+      color: var(--text-main);
+      padding: 9px 10px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #e056fd;
-      font-size: 1.2rem;
-      background: rgba(224, 86, 253, 0.05);
+      gap: 6px;
     }
 
-    .app-title h2 {
-      font-size: 1.15rem;
-      font-weight: 700;
+    .btn-qa:hover {
+      background: var(--lg-red);
+      color: #ffffff;
+      box-shadow: 0 0 10px var(--glow-red);
     }
 
-    .app-title p {
-      font-size: 0.8rem;
-      color: #9ca3af;
-      margin-top: 2px;
-    }
-
-    /* Formulário */
     .form-group {
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
 
     .form-group label {
       display: block;
-      font-size: 0.85rem;
-      margin-bottom: 8px;
+      font-size: 0.82rem;
+      margin-bottom: 6px;
       font-weight: 600;
+      color: var(--text-main);
     }
 
     .form-input, .form-select {
       width: 100%;
-      padding: 12px;
-      background-color: #0d0a1a;
-      border: 1px solid #e056fd;
+      padding: 10px 12px;
+      background-color: var(--input-bg);
+      border: 1px solid var(--border-card);
       border-radius: 6px;
-      color: #ffffff;
-      font-size: 0.9rem;
+      color: var(--text-main);
+      font-size: 0.85rem;
       outline: none;
-      transition: border-color 0.2s;
     }
 
     .form-input:focus, .form-select:focus {
-      border-color: #ff007f;
-      box-shadow: 0 0 8px rgba(255, 0, 127, 0.4);
+      border-color: var(--lg-red);
+      box-shadow: 0 0 8px var(--glow-red);
     }
 
     .form-input::placeholder {
-      color: #6b7280;
+      color: var(--text-secondary);
     }
 
     .form-select option {
-      background-color: #0d0a1a;
-      color: #ffffff;
+      background-color: var(--card-bg);
+      color: var(--text-main);
     }
 
-    /* Radio Buttons */
     .radio-group {
       display: flex;
-      gap: 15px;
-      background-color: #0d0a1a;
-      padding: 12px;
+      gap: 12px;
+      background-color: var(--radio-bg);
+      padding: 10px;
       border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-subtle);
       align-items: center;
     }
 
@@ -122,167 +308,366 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       cursor: pointer;
-      color: #d1d5db;
+      color: var(--text-main);
     }
 
     .radio-option input[type="radio"] {
-      accent-color: #ff007f;
+      accent-color: var(--lg-red);
       cursor: pointer;
     }
 
-    /* Botão */
     .btn-submit {
       width: 100%;
-      background: linear-gradient(90deg, #ff007f, #e056fd);
+      background: linear-gradient(90deg, var(--lg-red), var(--lg-red-hover));
       border: none;
-      padding: 14px;
+      padding: 12px;
       border-radius: 6px;
       color: white;
       font-weight: 700;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      margin-top: 20px;
-      transition: transform 0.1s, opacity 0.2s;
+      gap: 8px;
+      margin-top: 15px;
     }
 
     .btn-submit:hover {
-      opacity: 0.9;
+      opacity: 0.95;
+      box-shadow: 0 2px 12px var(--glow-red);
     }
 
-    .btn-submit:active {
-      transform: scale(0.98);
-    }
-
-    /* Mensagem de Alerta (Sucesso) */
     .alert-success {
-      margin-top: 20px;
-      background-color: rgba(0, 242, 254, 0.05);
-      border: 1px solid #00f2fe;
+      margin-top: 15px;
+      background-color: rgba(16, 185, 129, 0.1);
+      border: 1px solid #10b981;
       border-radius: 6px;
-      padding: 12px 16px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      /* Oculto por padrão */
+      padding: 10px 14px;
       display: none; 
+      align-items: center;
+      gap: 12px;
       animation: fadeIn 0.3s ease-in-out;
     }
 
     .alert-icon {
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
-      border: 1px solid #00f2fe;
+      border: 1px solid #10b981;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #00f2fe;
+      color: #10b981;
+      font-size: 0.8rem;
       flex-shrink: 0;
     }
 
     .alert-text h4 {
-      font-size: 0.9rem;
-      color: #00f2fe;
-      margin-bottom: 2px;
+      font-size: 0.85rem;
+      color: #10b981;
     }
 
     .alert-text p {
-      font-size: 0.8rem;
-      color: #d1d5db;
+      font-size: 0.75rem;
+      color: var(--text-main);
+    }
+
+    /* Estilo do Terminal */
+    .terminal-container {
+      background-color: var(--terminal-bg);
+      border-radius: 12px;
+      border: 1px solid var(--terminal-border);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .terminal-header {
+      background-color: var(--terminal-header);
+      padding: 10px 15px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .terminal-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--lg-red);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+
+    .terminal-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .dot-red { background-color: #ff5f56; }
+    .dot-yellow { background-color: #ffbd2e; }
+    .dot-green { background-color: #27c93f; }
+
+    .terminal-body {
+      padding: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      line-height: 1.5;
+      color: var(--terminal-text);
+      flex-grow: 1;
+      overflow-y: auto;
+      max-height: 480px;
+    }
+
+    .log-line {
+      margin-bottom: 6px;
+      word-break: break-all;
+    }
+
+    .log-time { color: #6272a4; }
+    .log-info { color: #38bdf8; }
+    .log-warn { color: #facc15; }
+    .log-success { color: #4ade80; }
+    .log-error { color: #f87171; }
+
+    .btn-clear-log {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+
+    .btn-clear-log:hover {
+      color: var(--text-main);
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-5px); }
+      from { opacity: 0; transform: translateY(-4px); }
       to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 <body>
 
-  <div class="container">
-    
-    <div class="app-header">
-      <div class="app-logo">
-        <i class="fa-solid fa-cube"></i>
-      </div>
-      <div class="app-title">
-        <h2>Cadastro de Lotes de Produção</h2>
-        <p>Sistema Corporativo – Ambiente de Teste</p>
-      </div>
-    </div>
+  <div class="main-wrapper">
+    <div class="card-container">
+      <div class="app-header">
+        <div class="brand-container">
+          <!-- Tag IMG apontando direto para o seu logo-lg.png -->
+          <img src="logo-lg.png" alt="LG Electronics" class="lg-logo-img">
 
-    <form id="formLote">
-      <div class="form-group">
-        <label for="lote">Número do Lote *</label>
-        <input type="text" id="lote" class="form-input" placeholder="Ex.: LOTE-2025-0001" required>
-      </div>
+          <div class="header-divider"></div>
 
-      <div class="form-group">
-        <label for="produto">Produto *</label>
-        <select id="produto" class="form-select" required>
-          <option value="" disabled selected>Selecione um produto</option>
-          <option value="Placa Mãe V1">Placa Mãe V1</option>
-          <option value="Processador X">Processador X</option>
-          <option value="Memória RAM 16GB">Memória RAM 16GB</option>
-        </select>
-      </div>
+          <div class="header-titles">
+            <div class="app-title-main">Plataforma de Qualidade - RPA</div>
+            <div class="app-subtitle">Inspeção & Conferência de Lotes</div>
+          </div>
+        </div>
 
-      <div class="form-group">
-        <label>Status *</label>
-        <div class="radio-group">
-          <label class="radio-option">
-            <input type="radio" name="status" value="Pendente" checked> Pendente
+        <!-- Switch Interruptor Dark/Light -->
+        <div class="theme-switch-wrapper">
+          <i class="fa-solid fa-moon theme-icon"></i>
+          <label class="switch">
+            <input type="checkbox" id="themeToggle" checked>
+            <span class="slider"></span>
           </label>
-          <label class="radio-option">
-            <input type="radio" name="status" value="Em Processamento"> Em Processamento
-          </label>
-          <label class="radio-option">
-            <input type="radio" name="status" value="Concluído"> Concluído
-          </label>
+          <i class="fa-solid fa-sun theme-icon"></i>
         </div>
       </div>
 
-      <button type="submit" class="btn-submit">
-        <i class="fa-regular fa-paper-plane"></i> Processar Lote
-      </button>
-    </form>
-
-    <div id="alertSuccess" class="alert-success">
-      <div class="alert-icon">
-        <i class="fa-solid fa-check"></i>
+      <!-- Executar Automação Externa -->
+      <div class="qa-tools">
+        <span class="qa-title"><i class="fa-solid fa-robot"></i> Disparar Bot de Automação</span>
+        <div class="qa-buttons">
+          <button type="button" id="btnRunPlaywright" data-testid="btn-run-playwright" class="btn-qa">
+            <i class="fa-solid fa-play"></i> Run Playwright
+          </button>
+          <button type="button" id="btnRunSelenium" data-testid="btn-run-selenium" class="btn-qa">
+            <i class="fa-solid fa-play"></i> Run Selenium
+          </button>
+        </div>
       </div>
-      <div class="alert-text">
-        <h4>Sucesso!</h4>
-        <p id="alertMessage">Lote processado com sucesso.</p>
+
+      <form id="formLote" data-testid="form-lote">
+        <div class="form-group">
+          <label for="lote">Número do Lote *</label>
+          <input type="text" id="lote" data-testid="input-lote" class="form-input" placeholder="Ex.: LOTE-2026-0001" required>
+        </div>
+
+        <div class="form-group">
+          <label for="produto">Produto *</label>
+          <select id="produto" data-testid="select-produto" class="form-select" required>
+            <option value="" disabled selected>Selecione um produto</option>
+            <option value="Placa Mãe V1">Placa Mãe V1</option>
+            <option value="Processador X">Processador X</option>
+            <option value="Memória RAM 16GB">Memória RAM 16GB</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Status da Inspeção *</label>
+          <div class="radio-group" data-testid="radio-group-status">
+            <label class="radio-option">
+              <input type="radio" name="status" value="Pendente" data-testid="status-pendente" checked> Pendente
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="status" value="Em Processamento" data-testid="status-processamento"> Em Processamento
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="status" value="Concluído" data-testid="status-concluido"> Concluído
+            </label>
+          </div>
+        </div>
+
+        <button type="submit" id="btnSubmit" data-testid="btn-submit" class="btn-submit">
+          <i class="fa-regular fa-paper-plane"></i> Processar Lote
+        </button>
+      </form>
+
+      <div id="alertSuccess" data-testid="alert-success" class="alert-success">
+        <div class="alert-icon">
+          <i class="fa-solid fa-check"></i>
+        </div>
+        <div class="alert-text">
+          <h4>Sucesso</h4>
+          <p id="alertMessage" data-testid="alert-message">Lote processado com sucesso.</p>
+        </div>
       </div>
     </div>
 
+    <!-- Mini Terminal de Logs -->
+    <div class="terminal-container">
+      <div class="terminal-header">
+        <div class="terminal-title">
+          <i class="fa-solid fa-terminal"></i> Console de Operação (SSE)
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button type="button" id="btnClearLog" class="btn-clear-log" title="Limpar logs">
+            <i class="fa-solid fa-trash-can"></i> Limpar
+          </button>
+          <div class="terminal-controls">
+            <span class="dot dot-red"></span>
+            <span class="dot dot-yellow"></span>
+            <span class="dot dot-green"></span>
+          </div>
+        </div>
+      </div>
+      <div id="terminalBody" class="terminal-body" data-testid="terminal-log">
+        <div class="log-line">
+          <span class="log-time">[SYSTEM]</span> Console pronto para monitoramento.
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
     const form = document.getElementById('formLote');
     const alertBox = document.getElementById('alertSuccess');
     const alertMessage = document.getElementById('alertMessage');
+    const terminalBody = document.getElementById('terminalBody');
+    const btnClearLog = document.getElementById('btnClearLog');
+
+    const btnPlaywright = document.getElementById('btnRunPlaywright');
+    const btnSelenium = document.getElementById('btnRunSelenium');
+    const themeToggle = document.getElementById('themeToggle');
+
+    // Alternador de Tema (Dark / Light)
+    themeToggle.addEventListener('change', function() {
+      if (this.checked) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    });
+
+    // Registra logs estruturados no terminal
+    function registrarLog(mensagem, tipo = 'info') {
+      const agora = new Date();
+      const horaStr = agora.toTimeString().split(' ')[0] + '.' + String(agora.getMilliseconds()).padStart(3, '0');
+      
+      const div = document.createElement('div');
+      div.className = 'log-line';
+
+      let classeTipo = 'log-info';
+      let prefixo = 'INFO';
+
+      if (tipo === 'warn') { classeTipo = 'log-warn'; prefixo = 'WARN'; }
+      if (tipo === 'success') { classeTipo = 'log-success'; prefixo = 'SUCCESS'; }
+      if (tipo === 'error') { classeTipo = 'log-error'; prefixo = 'ERROR'; }
+
+      div.innerHTML = `<span class="log-time">[${horaStr}]</span> <span class="${classeTipo}">[${prefixo}]</span> ${mensagem}`;
+      terminalBody.appendChild(div);
+      terminalBody.scrollTop = terminalBody.scrollHeight;
+    }
+
+    window.registrarLogHTML = function(mensagem, tipo = 'info') {
+      registrarLog(mensagem, tipo);
+    };
+
+    // Conexão SSE para transmissão de logs ao vivo
+    let eventSource = new EventSource('http://127.0.0.1:5000/stream-logs');
+    eventSource.onmessage = function(e) {
+      try {
+        const data = JSON.parse(e.data);
+        registrarLog(data.mensagem, data.tipo);
+      } catch (err) {
+        console.error('Erro ao processar mensagem SSE:', err);
+      }
+    };
+
+    function dispararBotLocal(engine) {
+      const temaAtual = document.documentElement.getAttribute('data-theme') || 'light';
+      registrarLog(`Iniciando solicitação de execução para engine: ${engine.toUpperCase()} [Tema: ${temaAtual.toUpperCase()}]...`, 'warn');
+      
+      fetch(`http://127.0.0.1:5000/run-${engine}`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: temaAtual })
+      })
+        .then(res => res.json())
+        .then(data => console.log(data.mensagem))
+        .catch(err => registrarLog(`Falha ao conectar na API local do bot: ${err.message}`, 'error'));
+    }
+
+    btnPlaywright.addEventListener('click', () => dispararBotLocal('playwright'));
+    btnSelenium.addEventListener('click', () => dispararBotLocal('selenium'));
+
+    btnClearLog.addEventListener('click', function() {
+      terminalBody.innerHTML = '<div class="log-line"><span class="log-time">[SYSTEM]</span> Console limpo.</div>';
+    });
 
     form.addEventListener('submit', function(event) {
-      // Impede o recarregamento da página
       event.preventDefault();
 
-      // Captura os dados do formulário
       const lote = document.getElementById('lote').value;
       const produto = document.getElementById('produto').value;
       const status = document.querySelector('input[name="status"]:checked').value;
 
-      // Exibe mensagem personalizada no alerta de sucesso
       alertMessage.innerText = `Lote "${lote}" (${produto}) processado com status: ${status}.`;
       alertBox.style.display = 'flex';
+
+      registrarLog(`Lote "${lote}" gravado com sucesso! Status: ${status}`, 'success');
+
+      form.reset();
     });
+
+    window.prepararEvidenciaVisual = function() {
+      alertBox.style.display = 'flex';
+    };
   </script>
 
 </body>

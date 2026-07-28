@@ -21,33 +21,41 @@ class FormPagePlaywright:
         self._alert_message = "#alertMessage"
 
     def preencher_lote(self, dados_lote: dict):
-        """Preenche o formulário limpando os campos anteriores."""
+        """Preenche o formulário de forma estática via JS para evitar qualquer rolagem/tremida."""
         dados_lote = dados_lote or {}
 
-        # 1. Lote (força a limpeza antes de digitar)
+        # 1. Lote (Injeção direta via JS no input)
         valor_lote = str(dados_lote.get("lote") or dados_lote.get("lote_id") or "LOTE-2026-0001")
-        campo_lote = self.page.locator(self._lote)
-        campo_lote.fill("")
-        campo_lote.fill(valor_lote)
+        self.page.evaluate(f"document.getElementById('lote').value = '{valor_lote}';")
         if self.delay_passo:
             time.sleep(self.delay_passo)
 
-        # 2. Produto (Select)
+        # 2. Produto (Select via JS)
         valor_produto = str(dados_lote.get("produto") or "Placa Mãe V1")
-        self.page.locator(self._produto).select_option(label=valor_produto)
+        self.page.evaluate(f"""
+            const select = document.getElementById('produto');
+            select.value = '{valor_produto}';
+            select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        """)
         if self.delay_passo:
             time.sleep(self.delay_passo)
 
-        # 3. Status (Radio Button)
+        # 3. Status (Radio Button via JS)
         valor_status = str(dados_lote.get("status") or "Pendente")
-        radio_locator = f'input[name="status"][value="{valor_status}"]'
-        self.page.locator(radio_locator).check()
+        self.page.evaluate(f"""
+            const radio = document.querySelector('input[name="status"][value="{valor_status}"]');
+            if (radio) {{
+                radio.checked = true;
+                radio.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }}
+        """)
         if self.delay_passo:
             time.sleep(self.delay_passo)
 
     def submeter_e_aguardar(self, timeout=5000) -> bool:
-        """Clica no botão Processar Lote e aguarda a caixa de sucesso."""
-        self.page.locator(self._btn_submit).click()
+        """Clica no botão Processar Lote via JS (zero scroll/tremida) e aguarda o sucesso."""
+        # Dispara o clique nativo via JavaScript diretamente no elemento, sem mover a tela
+        self.page.evaluate("document.querySelector('button.btn-submit').click();")
         try:
             self.page.locator(self._alert_success).wait_for(state="visible", timeout=timeout)
             if self.delay_passo:
@@ -71,7 +79,7 @@ class FormPageSelenium:
         self.delay_passo = delay_passo
 
     def preencher_lote(self, dados_lote: dict):
-        """Preenche o formulário no Chrome utilizando Selenium WebDriver."""
+        """Preenche o formulário no Edge utilizando Selenium WebDriver."""
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.webdriver.support.ui import Select
