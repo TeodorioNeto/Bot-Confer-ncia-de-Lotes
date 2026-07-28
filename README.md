@@ -226,17 +226,6 @@ Tambem e possivel executar cada versao diretamente:
 python -m src.web_automation_playwright
 python -m src.web_automation_selenium
 ```
-
-Comparacao pratica:
-
-| Criterio | Playwright | Selenium |
-| --- | --- | --- |
-| Padrao do projeto | Sim | Alternativa de laboratorio |
-| Inicializacao | Mais direta, com navegador gerenciado pelo Playwright | Depende do ChromeDriver via `webdriver-manager` |
-| Esperas | `wait_for` e auto-wait dos locators | `WebDriverWait` com condicoes esperadas |
-| Velocidade percebida | Geralmente mais rapido no setup apos instalacao | Pode ser mais lento na primeira execucao por causa do driver |
-| Uso recomendado | Fluxo principal da automacao web local | Comparacao, compatibilidade WebDriver e estudo da Aula 18 |
-
 Comparacao metrica executada localmente:
 
 | Metrica | Playwright | Selenium |
