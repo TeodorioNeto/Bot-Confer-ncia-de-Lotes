@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 
 from dotenv import load_dotenv
 from selenium import webdriver
@@ -34,7 +34,7 @@ def criar_driver():
 
 
 def preencher_formulario(dados_lote=None, credencial=None, screenshot_path=None):
-    """Executa o preenchimento do formulario local usando Selenium."""
+    """Executa o preenchimento da tela simulada de inspecao usando Selenium."""
     url = obter_url_automacao()
     dados_lote = dados_lote or {}
     caminho_screenshot = montar_caminho_screenshot(
@@ -47,31 +47,25 @@ def preencher_formulario(dados_lote=None, credencial=None, screenshot_path=None)
     wait = WebDriverWait(driver, 10)
 
     try:
-        logger.info("Iniciando automacao Selenium para lote %s.", dados_lote.get("lote_id"))
+        logger.info(
+            "Iniciando automacao Selenium para lote %s.",
+            dados_lote.get("lote_id"),
+        )
         driver.get(url)
 
-        campo_lote = wait.until(EC.element_to_be_clickable((By.ID, "lote")))
-        seletor_produto = wait.until(EC.element_to_be_clickable((By.ID, "produto")))
-        status_concluido = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "(//input[@name='status'])[3]"))
+        _preencher(wait, "lote_id", dados_lote.get("lote_id"))
+        _preencher(wait, "produto", dados_lote.get("produto"))
+        _preencher(wait, "linha", dados_lote.get("linha"))
+        _preencher(wait, "turno", dados_lote.get("turno"))
+        Select(wait.until(EC.element_to_be_clickable((By.ID, "status")))).select_by_value(
+            _status_formulario(dados_lote.get("status"))
         )
-        botao_processar = wait.until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']"))
-        )
+        _preencher(wait, "responsavel", dados_lote.get("responsavel"))
+        _preencher(wait, "data", dados_lote.get("data"))
+        _preencher(wait, "observacao", dados_lote.get("observacao"))
 
-        campo_lote.send_keys(str(dados_lote.get("lote_id") or ""))
-        _selecionar_produto(seletor_produto, dados_lote.get("produto"))
-        status_radio = _status_formulario(dados_lote.get("status"))
-        if status_radio != "Concluído":
-            status_concluido = wait.until(
-                EC.element_to_be_clickable(
-                    (By.CSS_SELECTOR, f"input[name='status'][value='{status_radio}']")
-                )
-            )
-        status_concluido.click()
-        botao_processar.click()
-
-        wait.until(EC.visibility_of_element_located((By.ID, "alertSuccess")))
+        wait.until(EC.element_to_be_clickable((By.ID, "btn-processar"))).click()
+        wait.until(EC.visibility_of_element_located((By.ID, "resultado")))
         driver.save_screenshot(str(caminho_screenshot))
         logger.info("Screenshot Selenium gerado em %s.", caminho_screenshot)
         return {"driver": "selenium", "screenshot": str(caminho_screenshot)}
@@ -79,23 +73,17 @@ def preencher_formulario(dados_lote=None, credencial=None, screenshot_path=None)
         driver.quit()
 
 
-def _selecionar_produto(elemento_select, produto):
-    select = Select(elemento_select)
-    opcoes = [opcao.get_attribute("value") for opcao in select.options]
-    produto = str(produto or "").strip()
-    if produto in opcoes:
-        select.select_by_value(produto)
-    else:
-        select.select_by_index(1)
+def _preencher(wait, campo_id, valor):
+    campo = wait.until(EC.element_to_be_clickable((By.ID, campo_id)))
+    campo.clear()
+    campo.send_keys(str(valor or ""))
 
 
 def _status_formulario(status):
     status_normalizado = normalizar_status(status)
-    if status_normalizado == "PENDENTE":
-        return "Pendente"
-    if status_normalizado == "APROVADO":
-        return "Concluído"
-    return "Em Processamento"
+    if status_normalizado in {"APROVADO", "REPROVADO", "PENDENTE"}:
+        return status_normalizado
+    return "PENDENTE"
 
 
 if __name__ == "__main__":

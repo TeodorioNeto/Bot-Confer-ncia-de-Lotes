@@ -38,6 +38,7 @@ Bot corporativo para conferir lotes de qualidade, identificar divergencias na pl
 |-- config.py                # ambiente, caminhos, DataPool e Vault
 |-- dispatcher.py            # valida a planilha e alimenta a fila
 |-- main.py                  # orquestracao e finalizacao no Maestro
+|-- simulador_inspecao_lotes.html # tela web simulada para Playwright/Selenium
 |-- testar_local.py          # simulacao local do processamento por item
 |-- vault_client.py          # leitura segura da credencial do ERP
 |-- src/
@@ -193,7 +194,7 @@ python -m src.web_automation
 
 Quando executado isoladamente, `python -m src.web_automation` carrega o primeiro lote valido da planilha configurada em `ARQUIVO_INSPECAO`. Se a planilha nao existir, usa apenas um registro demonstrativo para permitir teste local da tela.
 
-A URL da tela e configurada por `WEB_AUTOMATION_URL`. Se essa variavel ficar vazia, o projeto usa `doc.html` como tela simulada de aula. Em homologacao, basta apontar para a URL do sistema de inspecao de lotes:
+A URL da tela e configurada por `WEB_AUTOMATION_URL`. Se essa variavel ficar vazia, o projeto usa `simulador_inspecao_lotes.html` como tela local simulada. Em homologacao, basta apontar para a URL do sistema de inspecao de lotes:
 
 ```dotenv
 WEB_AUTOMATION_URL=https://ambiente-homologacao/sistema-lotes
@@ -313,6 +314,7 @@ dispatcher.py
 vault_client.py
 requirements.txt
 README.md
+simulador_inspecao_lotes.html
 src/
 dados_entrada/inspecao_lotes_dia.xlsx
 ```
