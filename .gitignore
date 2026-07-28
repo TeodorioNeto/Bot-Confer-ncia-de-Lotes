@@ -39,10 +39,7 @@ data/output/
 Thumbs.db
 
 # Artefatos locais de execucao
-logs/
-logs/screenshots/
-screenshots/
-*.png
+
 
 # Zips
 *.zip
