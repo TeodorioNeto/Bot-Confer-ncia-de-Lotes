@@ -1,19 +1,23 @@
+"""
+src/web_automation_selenium.py
+Orquestrador Selenium com iteração dinâmica sobre o DataPool.
+"""
+
 import logging
 import os
-from base64 import b64decode
+import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
-from src.validacao import normalizar_status
+from src.pages.form_page import FormPageSelenium
+from src.pages.login_page import LoginPageSelenium
+from src.web_automation_playwright import carregar_datapool_tratado
 from src.web_evidencias import montar_caminho_screenshot, obter_url_automacao
-
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -26,128 +30,86 @@ def criar_driver():
     if os.getenv("SELENIUM_HEADLESS", "false").lower() == "true":
         options.add_argument("--headless=new")
 
-    options.add_argument("--window-size=1280,720")
+    options.add_argument("--start-maximized")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
 
     service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=options)
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.maximize_window()
+    return driver
 
 
-def preencher_formulario(
-    dados_lote=None,
-    credencial=None,
-    screenshot_path=None,
-    analises=None,
-    linha_planilha=None,
-):
-    """Executa o preenchimento da tela simulada de inspecao usando Selenium."""
+def processar_datapool_selenium(delay_passo=0.2):
+    """Lê a planilha de inspeção e processa cada lote sequencialmente via Selenium."""
     url = obter_url_automacao()
-    dados_lote = dados_lote or {}
-    caminho_screenshot = montar_caminho_screenshot(
-        dados_lote,
-        "selenium",
-        screenshot_path=screenshot_path,
-    )
+    lotes = carregar_datapool_tratado()
+    logger.info("Carregados %d lotes para processamento Selenium.", len(lotes))
 
     driver = criar_driver()
     wait = WebDriverWait(driver, 10)
 
     try:
-        logger.info(
-            "Iniciando automacao Selenium para lote %s.",
-            dados_lote.get("lote_id"),
-        )
         driver.get(url)
 
-        _preencher(wait, "lote_id", dados_lote.get("lote_id"))
-        _preencher(wait, "produto", dados_lote.get("produto"))
-        _preencher(wait, "linha", dados_lote.get("linha"))
-        _preencher(wait, "turno", dados_lote.get("turno"))
-        Select(wait.until(EC.element_to_be_clickable((By.ID, "status")))).select_by_value(
-            _status_formulario(dados_lote.get("status"))
-        )
-        _preencher(wait, "responsavel", dados_lote.get("responsavel"))
-        _preencher(wait, "data", dados_lote.get("data"))
-        _preencher(wait, "observacao", dados_lote.get("observacao"))
+        login_page = LoginPageSelenium(driver, wait, delay_passo=delay_passo)
+        form_page = FormPageSelenium(driver, wait, delay_passo=delay_passo)
 
-        wait.until(EC.element_to_be_clickable((By.ID, "btn-processar"))).click()
-        wait.until(EC.visibility_of_element_located((By.ID, "resultado")))
-        _registrar_analises(wait, dados_lote, analises or [], linha_planilha)
-        driver.execute_script(
-            "window.prepararEvidenciaVisual && window.prepararEvidenciaVisual()"
-        )
-        _salvar_screenshot_pagina_inteira(driver, caminho_screenshot)
-        logger.info("Screenshot Selenium gerado em %s.", caminho_screenshot)
-        return {
-            "driver": "selenium",
-            "screenshot": str(caminho_screenshot),
-            "analises_registradas": len(analises or []),
-        }
+        login_page.fazer_login()
+
+        processados = 0
+        for idx, item in enumerate(lotes, start=1):
+            logger.info(
+                "[%d/%d] [Selenium] Preenchendo lote %s | Produto: %s | Status: %s",
+                idx,
+                len(lotes),
+                item["lote_id"],
+                item["produto"],
+                item["status"],
+            )
+
+            # 1. Recarrega a página para garantir estado limpo a cada item
+            driver.refresh()
+
+            # 2. Preenche os novos dados da iteração
+            form_page.preencher_lote(item)
+
+            # 3. Submete o formulário
+            sucesso = form_page.submeter_e_aguardar()
+
+            # 4. Salva a evidência usando o método nativo estável do Selenium
+            driver.execute_script(
+                "window.prepararEvidenciaVisual && window.prepararEvidenciaVisual()"
+            )
+            caminho_screenshot = montar_caminho_screenshot(item, "selenium")
+            caminho_screenshot.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Captura segura sem crashar o renderizador do Chrome
+            driver.save_screenshot(str(caminho_screenshot))
+
+            if sucesso:
+                logger.info("✓ [Selenium] Lote %s submetido com Sucesso!", item["lote_id"])
+
+            processados += 1
+
+        time.sleep(2)
+        return processados
+
+    except Exception as e:
+        logger.error("Erro durante a execução no Selenium: %s", e)
+        raise e
     finally:
-        driver.quit()
-
-
-def _preencher(wait, campo_id, valor):
-    campo = wait.until(EC.element_to_be_clickable((By.ID, campo_id)))
-    campo.clear()
-    campo.send_keys(str(valor or ""))
-
-
-def _status_formulario(status):
-    status_normalizado = normalizar_status(status)
-    if status_normalizado in {"APROVADO", "REPROVADO", "PENDENTE"}:
-        return status_normalizado
-    return "PENDENTE"
-
-
-def _registrar_analises(wait, dados_lote, analises, linha_planilha):
-    for analise in analises:
-        _preencher(wait, "linha_planilha", analise.get("linha_planilha") or linha_planilha)
-        _preencher(
-            wait,
-            "analise_lote_id",
-            analise.get("lote_id") or dados_lote.get("lote_id") or "(vazio)",
-        )
-        _preencher(wait, "regra", analise.get("regra"))
-        _preencher(wait, "problema", analise.get("problema"))
-        _preencher(wait, "acao_recomendada", analise.get("acao"))
-        revisao = (
-            "Sim (aviso)"
-            if analise.get("categoria") == "aviso"
-            else "Sim (divergencia)"
-        )
-        Select(wait.until(EC.element_to_be_clickable((By.ID, "revisao")))).select_by_value(
-            revisao
-        )
-        wait.until(EC.element_to_be_clickable((By.ID, "btn-adicionar-analise"))).click()
-
-
-def _salvar_screenshot_pagina_inteira(driver, caminho_screenshot):
-    metricas = driver.execute_cdp_cmd("Page.getLayoutMetrics", {})
-    tamanho = metricas["contentSize"]
-    largura = int(tamanho["width"])
-    altura = int(tamanho["height"])
-
-    driver.execute_cdp_cmd(
-        "Emulation.setDeviceMetricsOverride",
-        {
-            "mobile": False,
-            "width": max(1280, largura),
-            "height": max(720, altura),
-            "deviceScaleFactor": 1,
-        },
-    )
-    captura = driver.execute_cdp_cmd(
-        "Page.captureScreenshot",
-        {
-            "format": "png",
-            "fromSurface": True,
-            "captureBeyondViewport": True,
-        },
-    )
-    caminho_screenshot.write_bytes(b64decode(captura["data"]))
+        try:
+            driver.quit()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
-    preencher_formulario()
+    qtd = processar_datapool_selenium(delay_passo=0.1)
+    print(
+        f"\n==================================================\n"
+        f" [SUCESSO] Processamento do DataPool (Selenium) concluído!\n"
+        f" Total de lotes processados e fotografados: {qtd}\n"
+        f"==================================================\n"
+    )

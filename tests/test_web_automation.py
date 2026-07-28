@@ -1,8 +1,8 @@
 from unittest.mock import Mock, patch
-
+import src.web_automation_playwright
+import src.web_automation_selenium
 import openpyxl
 import pytest
-
 from src import web_automation, web_evidencias
 from src.web_evidencias import montar_caminho_screenshot
 
