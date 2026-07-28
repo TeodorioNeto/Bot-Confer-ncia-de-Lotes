@@ -99,34 +99,26 @@ def main():
                 resultado = processar_item(item, base_referencia)
                 resumo_divergencias.append(resultado)
 
-                if resultado["divergencias"]:
-                    item.report_error(
-                        error_type=ErrorType.BUSINESS,
-                        finish_message=" | ".join(resultado["divergencias"]),
-                    )
-                    falhados += 1
-                    logger.warning(
-                        "Item %s barrado: %s",
-                        resultado["lote_id"],
-                        " | ".join(resultado["divergencias"]),
-                    )
-                else:
-                    if WEB_AUTOMATION_ENABLED:
-                        try:
-                            logger.info(
-                                "Executando automacao web via %s para o lote %s.",
-                                WEB_AUTOMATION_DRIVER,
-                                resultado["lote_id"],
-                            )
-                            caminho_screenshot = item.get_value("screenshot") or None
-                            evidencia_web = preencher_formulario(
-                                dados_lote=montar_dados_lote(item),
-                                credencial=credencial_erp,
-                                screenshot_path=caminho_screenshot,
-                            )
-                            resultado["web_automation"] = evidencia_web
-                            resultado["screenshot"] = evidencia_web.get("screenshot")
-                        except Exception as erro_web:
+                if WEB_AUTOMATION_ENABLED:
+                    try:
+                        logger.info(
+                            "Executando automacao web via %s para o lote %s.",
+                            WEB_AUTOMATION_DRIVER,
+                            resultado["lote_id"],
+                        )
+                        caminho_screenshot = item.get_value("screenshot") or None
+                        evidencia_web = preencher_formulario(
+                            dados_lote=montar_dados_lote(item),
+                            credencial=credencial_erp,
+                            screenshot_path=caminho_screenshot,
+                            analises=resultado["analises"],
+                            linha_planilha=item.get_value("linha_planilha"),
+                        )
+                        resultado["web_automation"] = evidencia_web
+                        resultado["screenshot"] = evidencia_web.get("screenshot")
+                    except Exception as erro_web:
+                        resultado["web_automation_error"] = str(erro_web)
+                        if not resultado["divergencias"]:
                             item.report_error(
                                 error_type=ErrorType.SYSTEM,
                                 finish_message=f"Falha na automacao web: {erro_web}",
@@ -139,6 +131,24 @@ def main():
                             )
                             continue
 
+                        logger.exception(
+                            "Falha ao gerar evidencia web do lote divergente %s: %s",
+                            resultado["lote_id"],
+                            erro_web,
+                        )
+
+                if resultado["divergencias"]:
+                    item.report_error(
+                        error_type=ErrorType.BUSINESS,
+                        finish_message=" | ".join(resultado["divergencias"]),
+                    )
+                    falhados += 1
+                    logger.warning(
+                        "Item %s barrado: %s",
+                        resultado["lote_id"],
+                        " | ".join(resultado["divergencias"]),
+                    )
+                else:
                     item.report_done()
                     processados += 1
                     logger.info("Item %s processado.", resultado["lote_id"])
