@@ -9,6 +9,8 @@ Projeto desenvolvido colaborativamente por:
 - **Teodorio Neto**
 - **Victor Breno**
 
+Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
+
 ## Funcionalidades
 
 - valida a estrutura e os campos obrigatórios da planilha;
