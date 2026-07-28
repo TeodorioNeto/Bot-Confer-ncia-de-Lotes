@@ -193,7 +193,7 @@ O arquivo `src/web_automation.py` funciona como ponto de entrada comum. Por padr
 python -m src.web_automation
 ```
 
-Quando executado isoladamente, `python -m src.web_automation` carrega o primeiro lote com ocorrencia da planilha configurada em `ARQUIVO_INSPECAO`. Se nao houver ocorrencia, usa o primeiro lote valido. Se a planilha nao existir, usa apenas um registro demonstrativo para permitir teste local da tela.
+Quando executado isoladamente, `python -m src.web_automation` analisa a planilha inteira configurada em `ARQUIVO_INSPECAO`, carrega o primeiro lote com ocorrencia como contexto principal da tela e insere todas as ocorrencias encontradas na tabela `Formulario_Analise` do simulador. Se nao houver ocorrencia, usa o primeiro lote valido. Se a planilha nao existir, usa apenas um registro demonstrativo para permitir teste local da tela.
 
 A URL da tela e configurada por `WEB_AUTOMATION_URL`. Se essa variavel ficar vazia, o projeto usa `simulador_inspecao_lotes.html` como tela local simulada. Em homologacao, basta apontar para a URL do sistema de inspecao de lotes:
 
@@ -201,12 +201,13 @@ A URL da tela e configurada por `WEB_AUTOMATION_URL`. Se essa variavel ficar vaz
 WEB_AUTOMATION_URL=https://ambiente-homologacao/sistema-lotes
 ```
 
-No fluxo com BotCity/DataPool, a automacao web so roda quando `WEB_AUTOMATION_ENABLED=true`. Ela e acionada pelo Performer para cada lote processado. Quando o item possui divergencias, o simulador insere as linhas na tabela `Formulario_Analise` com linha da planilha, `lote_id`, problema, regra violada, acao recomendada e status de revisao.
+No fluxo com BotCity/DataPool, a automacao web so roda quando `WEB_AUTOMATION_ENABLED=true`. Ela e acionada pelo Performer para cada lote processado. Quando o item possui divergencias, o simulador insere a ocorrencia na tabela `Formulario_Analise` com linha da planilha, `lote_id`, problema, regra violada, acao recomendada e status de revisao.
 
 Cada item processado pela automacao web gera um screenshot em:
 
 ```text
-logs/screenshots/
+logs/screenshots/playwright/
+logs/screenshots/selenium/
 ```
 
 O caminho do screenshot e registrado no resultado do item, no `resumo_execucao.json` e, quando a execucao ocorre pelo Runner, a imagem tambem e publicada como artefato no Maestro. A pasta de screenshots fica fora do Git pelo `.gitignore`.
@@ -278,7 +279,8 @@ Os arquivos gerados ficam na pasta `logs/`:
 | --- | --- |
 | `execucao.log` | Eventos da execucao com timestamp e severidade |
 | `resumo_execucao.json` | Totais, falhas e divergencias encontradas |
-| `screenshots/*.png` | Evidencias visuais geradas por item na automacao web |
+| `screenshots/playwright/*.png` | Evidencias visuais geradas por item com Playwright |
+| `screenshots/selenium/*.png` | Evidencias visuais geradas por item com Selenium |
 | `inspecao_lotes_dia_analisado.xlsx` | Copia da planilha com `Formulario_Analise`, `lotes_ambiguos` e `Resumo_Diario` preenchidos |
 
 Quando a execucao ocorre pelo Runner, o JSON, a planilha analisada e os screenshots gerados tambem sao publicados como artefatos da tarefa no Maestro.
@@ -300,7 +302,7 @@ python -m unittest discover -s tests -p "test*.py"
 Resultado esperado no estado atual:
 
 ```text
-44 passed
+45 passed
 ```
 
 ## Pacote para BotCity Maestro

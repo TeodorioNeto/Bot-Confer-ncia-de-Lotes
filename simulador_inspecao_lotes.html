@@ -175,6 +175,15 @@
       padding: 3px 8px;
       white-space: nowrap;
     }
+    .evidencia-gerada #form-analise {
+      display: none;
+    }
+    body.evidencia-gerada #form-inspecao {
+      display: none;
+    }
+    .evidencia-gerada table {
+      margin-top: 4px;
+    }
     @media (max-width: 820px) {
       header {
         align-items: flex-start;
@@ -361,6 +370,18 @@
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
     }
+
+    window.prepararEvidenciaVisual = function () {
+      const painel = document.querySelector('[aria-labelledby="titulo-formulario-analise"]');
+      const temAnalise = !document.getElementById("formulario_analise_vazio");
+
+      if (painel && temAnalise) {
+        painel.classList.add("evidencia-gerada");
+        document.body.classList.add("evidencia-gerada");
+      }
+
+      window.scrollTo(0, 0);
+    };
   </script>
 </body>
 </html>

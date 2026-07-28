@@ -102,6 +102,49 @@ def test_carrega_primeiro_resultado_com_ocorrencia_para_formulario_analise(tmp_p
     assert any(analise["regra"] == "RN07" for analise in resultado["analises"])
 
 
+def test_carrega_todas_ocorrencias_da_planilha_para_formulario_analise(tmp_path):
+    caminho = tmp_path / "inspecao_lotes_dia.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Inspecao_14_06_2026"
+    ws.append(["PLANILHA DE INSPECAO"])
+    ws.append(["Arquivo", "Sistema", "Registros"])
+    ws.append(
+        [
+            "lote_id",
+            "produto",
+            "linha",
+            "turno",
+            "status",
+            "responsavel",
+            "data",
+            "observacao",
+        ]
+    )
+    ws.append(["LG-2026-00101", "TV", "A", "MANHA", "APROVADO", "Ana", "14/06/2026", ""])
+    ws.append(["LG-2026-00102", "TV", "A", "MANHA", "NOK", "Bia", "14/06/2026", ""])
+    ws.append(["LG-2026-00103", "TV", "A", "MANHA", "APROVADO PARCIAL", "Caio", "14/06/2026", ""])
+
+    base = wb.create_sheet("Base_Referencia")
+    base.append(["BASE DE REFERENCIA"])
+    base.append(["lote_id", "codigo_produto", "descricao_produto", "status_cadastro"])
+    base.append(["LG-2026-00101", "P001", "TV", "ativo"])
+    base.append(["LG-2026-00102", "P002", "TV", "ativo"])
+    base.append(["LG-2026-00103", "P003", "TV", "ativo"])
+    wb.save(caminho)
+
+    resultado = web_automation.carregar_resultado_planilha_para_web(caminho)
+    regras = [analise["regra"] for analise in resultado["analises"]]
+    linhas = [analise["linha_planilha"] for analise in resultado["analises"]]
+
+    assert resultado["dados_lote"]["lote_id"] == "LG-2026-00102"
+    assert "RN07" in regras
+    assert "RN04" in regras
+    assert "RN06" in regras
+    assert 5 in linhas
+    assert 6 in linhas
+
+
 def test_preencher_formulario_usa_playwright_por_padrao(monkeypatch):
     monkeypatch.delenv("WEB_AUTOMATION_DRIVER", raising=False)
     preencher_playwright = Mock()
@@ -177,4 +220,5 @@ def test_montar_caminho_screenshot_cria_nome_seguro(monkeypatch, tmp_path):
     )
 
     assert "selenium_LG_2026_00101.png" in caminho.name
+    assert caminho.parent.name == "selenium"
     assert caminho.parent.exists()
