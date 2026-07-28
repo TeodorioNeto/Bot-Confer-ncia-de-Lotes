@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador de Inspecao de Lotes</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f4f6f8;
+      color: #1f2933;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #d7dde5;
+      padding-bottom: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+    }
+    .subtitle {
+      margin: 6px 0 0;
+      color: #5d6b7a;
+      font-size: 14px;
+    }
+    .badge {
+      border: 1px solid #bfd1e5;
+      background: #eaf3ff;
+      color: #164b7a;
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    form {
+      background: #ffffff;
+      border: 1px solid #d7dde5;
+      border-radius: 6px;
+      padding: 20px;
+      box-shadow: 0 8px 20px rgba(31, 41, 51, 0.06);
+    }
+    .panel {
+      background: #ffffff;
+      border: 1px solid #d7dde5;
+      border-radius: 6px;
+      margin-top: 18px;
+      padding: 20px;
+      box-shadow: 0 8px 20px rgba(31, 41, 51, 0.06);
+    }
+    .panel h2 {
+      margin: 0 0 6px;
+      font-size: 18px;
+    }
+    .panel p {
+      margin: 0 0 16px;
+      color: #5d6b7a;
+      font-size: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .wide { grid-column: span 2; }
+    .full { grid-column: 1 / -1; }
+    label {
+      color: #374151;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid #b8c2cc;
+      border-radius: 4px;
+      padding: 10px 11px;
+      color: #1f2933;
+      font-size: 14px;
+      outline: none;
+      background: #ffffff;
+    }
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: #1d6fb8;
+      box-shadow: 0 0 0 3px rgba(29, 111, 184, 0.14);
+    }
+    textarea {
+      min-height: 92px;
+      resize: vertical;
+    }
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 18px;
+      border-top: 1px solid #edf0f3;
+      padding-top: 16px;
+    }
+    button {
+      border: 0;
+      border-radius: 4px;
+      background: #1d6fb8;
+      color: #ffffff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 11px 16px;
+    }
+    button:hover { background: #155b98; }
+    .secondary-button {
+      background: #374151;
+    }
+    .secondary-button:hover { background: #1f2937; }
+    #resultado {
+      display: none;
+      margin-top: 18px;
+      border: 1px solid #9bd2ad;
+      border-radius: 6px;
+      background: #eefaf1;
+      color: #176333;
+      padding: 14px 16px;
+      font-size: 14px;
+    }
+    #resultado strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th,
+    td {
+      border-bottom: 1px solid #e5e9ef;
+      padding: 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f7f9fb;
+      color: #374151;
+      font-weight: 700;
+    }
+    .empty-state {
+      color: #6b7280;
+      text-align: center;
+    }
+    .rule-pill {
+      display: inline-block;
+      border-radius: 999px;
+      background: #fee2e2;
+      color: #991b1b;
+      font-weight: 700;
+      padding: 3px 8px;
+      white-space: nowrap;
+    }
+    .evidencia-gerada #form-analise {
+      display: none;
+    }
+    body.evidencia-gerada #form-inspecao {
+      display: none;
+    }
+    .evidencia-gerada table {
+      margin-top: 4px;
+    }
+    @media (max-width: 820px) {
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .grid { grid-template-columns: 1fr; }
+      .wide { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Simulador de Inspecao de Lotes</h1>
+        <p class="subtitle">Tela local para validar Playwright e Selenium com dados da planilha diaria.</p>
+      </div>
+      <div class="badge">Ambiente simulado</div>
+    </header>
+
+    <form id="form-inspecao">
+      <div class="grid">
+        <div class="field">
+          <label for="lote_id">lote_id</label>
+          <input id="lote_id" name="lote_id" type="text" required>
+        </div>
+        <div class="field wide">
+          <label for="produto">produto</label>
+          <input id="produto" name="produto" type="text" required>
+        </div>
+        <div class="field">
+          <label for="linha">linha</label>
+          <input id="linha" name="linha" type="text" required>
+        </div>
+        <div class="field">
+          <label for="turno">turno</label>
+          <input id="turno" name="turno" type="text" required>
+        </div>
+        <div class="field">
+          <label for="status">status</label>
+          <select id="status" name="status" required>
+            <option value="">Selecione</option>
+            <option value="APROVADO">APROVADO</option>
+            <option value="REPROVADO">REPROVADO</option>
+            <option value="PENDENTE">PENDENTE</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="responsavel">responsavel</label>
+          <input id="responsavel" name="responsavel" type="text" required>
+        </div>
+        <div class="field">
+          <label for="data">data</label>
+          <input id="data" name="data" type="text" required>
+        </div>
+        <div class="field full">
+          <label for="observacao">observacao</label>
+          <textarea id="observacao" name="observacao"></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="btn-processar" type="submit">Registrar inspecao</button>
+      </div>
+    </form>
+
+    <section id="resultado" aria-live="polite">
+      <strong>Inspecao registrada</strong>
+      <span id="mensagem-resultado"></span>
+    </section>
+
+    <section class="panel" aria-labelledby="titulo-formulario-analise">
+      <h2 id="titulo-formulario-analise">Formulario_Analise</h2>
+      <p>Linhas da planilha que feriram regras de negocio e precisam de acao.</p>
+
+      <form id="form-analise">
+        <div class="grid">
+          <div class="field">
+            <label for="linha_planilha">linha_planilha</label>
+            <input id="linha_planilha" name="linha_planilha" type="text">
+          </div>
+          <div class="field">
+            <label for="analise_lote_id">lote_id</label>
+            <input id="analise_lote_id" name="analise_lote_id" type="text">
+          </div>
+          <div class="field">
+            <label for="regra">regra</label>
+            <input id="regra" name="regra" type="text">
+          </div>
+          <div class="field">
+            <label for="revisao">revisao</label>
+            <select id="revisao" name="revisao">
+              <option value="Sim (divergencia)">Sim (divergencia)</option>
+              <option value="Sim (aviso)">Sim (aviso)</option>
+            </select>
+          </div>
+          <div class="field wide">
+            <label for="problema">problema</label>
+            <textarea id="problema" name="problema"></textarea>
+          </div>
+          <div class="field wide">
+            <label for="acao_recomendada">acao_recomendada</label>
+            <textarea id="acao_recomendada" name="acao_recomendada"></textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="btn-adicionar-analise" class="secondary-button" type="submit">Adicionar ao Formulario_Analise</button>
+        </div>
+      </form>
+
+      <table aria-label="Formulario_Analise">
+        <thead>
+          <tr>
+            <th>Linha</th>
+            <th>Lote ID</th>
+            <th>Problema</th>
+            <th>Regra</th>
+            <th>Acao recomendada</th>
+            <th>Revisao</th>
+          </tr>
+        </thead>
+        <tbody id="formulario_analise_body">
+          <tr id="formulario_analise_vazio">
+            <td class="empty-state" colspan="6">Nenhuma divergencia registrada.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("form-inspecao");
+    const resultado = document.getElementById("resultado");
+    const mensagem = document.getElementById("mensagem-resultado");
+    const formAnalise = document.getElementById("form-analise");
+    const tabelaAnalise = document.getElementById("formulario_analise_body");
+    const linhaVazia = document.getElementById("formulario_analise_vazio");
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+
+      const loteId = document.getElementById("lote_id").value;
+      const produto = document.getElementById("produto").value;
+      const status = document.getElementById("status").value;
+      const linha = document.getElementById("linha").value;
+
+      mensagem.textContent = `Lote ${loteId} (${produto}) registrado na linha ${linha} com status ${status}.`;
+      resultado.style.display = "block";
+    });
+
+    formAnalise.addEventListener("submit", function (event) {
+      event.preventDefault();
+
+      if (linhaVazia) {
+        linhaVazia.remove();
+      }
+
+      const linha = document.getElementById("linha_planilha").value || "-";
+      const loteId = document.getElementById("analise_lote_id").value || "(vazio)";
+      const problema = document.getElementById("problema").value;
+      const regra = document.getElementById("regra").value;
+      const acao = document.getElementById("acao_recomendada").value;
+      const revisao = document.getElementById("revisao").value;
+
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${escapeHtml(linha)}</td>
+        <td>${escapeHtml(loteId)}</td>
+        <td>${escapeHtml(problema)}</td>
+        <td><span class="rule-pill">${escapeHtml(regra)}</span></td>
+        <td>${escapeHtml(acao)}</td>
+        <td>${escapeHtml(revisao)}</td>
+      `;
+      tabelaAnalise.appendChild(row);
+      formAnalise.reset();
+    });
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    window.prepararEvidenciaVisual = function () {
+      const painel = document.querySelector('[aria-labelledby="titulo-formulario-analise"]');
+      const temAnalise = !document.getElementById("formulario_analise_vazio");
+
+      if (painel && temAnalise) {
+        painel.classList.add("evidencia-gerada");
+        document.body.classList.add("evidencia-gerada");
+      }
+
+      window.scrollTo(0, 0);
+    };
+  </script>
+</body>
+</html>

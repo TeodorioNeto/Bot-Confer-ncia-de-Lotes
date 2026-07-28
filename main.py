@@ -8,6 +8,7 @@ sem tentar processar nada.
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from botcity.maestro import BotMaestroSDK, AutomationTaskFinishStatus, AlertType, ErrorType
 from config import (
     MAESTRO_ENABLED,
@@ -19,6 +20,8 @@ from config import (
     ARQUIVO_INSPECAO,
     DATAPOOL_LABEL,
     LOGS_DIR,
+    WEB_AUTOMATION_DRIVER,
+    WEB_AUTOMATION_ENABLED,
 )
 from src.logging_config import configurar_logging
 from vault_client import obter_credencial_erp
@@ -26,7 +29,7 @@ from bot import processar_item
 from dispatcher import popular_fila
 from src.analise_formulario import analisar_e_preencher_formulario
 from src.base_referencia import carregar_base_referencia
-from src.web_automation import preencher_formulario
+from src.web_automation import montar_dados_lote, preencher_formulario
 
 configurar_logging(LOGS_DIR)
 logger = logging.getLogger(__name__)
@@ -36,6 +39,7 @@ logger = logging.getLogger(__name__)
 def main():
     maestro = None
     task_id = None
+    credencial_erp = None
     total = processados = falhados = 0
     try:
         maestro = BotMaestroSDK.from_sys_args()
@@ -68,11 +72,7 @@ def main():
             )
 
         if VAULT_ENABLED and conectado_maestro:
-            obter_credencial_erp(maestro)
-
-        # Executa a automação Playwright na interface Web
-        logger.info("Executando automação Web via Playwright...")
-        preencher_formulario()
+            credencial_erp = obter_credencial_erp(maestro)
 
         # O Dispatcher sempre precede o Performer quando há conexão com o Maestro.
         if conectado_maestro:
@@ -99,6 +99,44 @@ def main():
                 resultado = processar_item(item, base_referencia)
                 resumo_divergencias.append(resultado)
 
+                if WEB_AUTOMATION_ENABLED:
+                    try:
+                        logger.info(
+                            "Executando automacao web via %s para o lote %s.",
+                            WEB_AUTOMATION_DRIVER,
+                            resultado["lote_id"],
+                        )
+                        caminho_screenshot = item.get_value("screenshot") or None
+                        evidencia_web = preencher_formulario(
+                            dados_lote=montar_dados_lote(item),
+                            credencial=credencial_erp,
+                            screenshot_path=caminho_screenshot,
+                            analises=resultado["analises"],
+                            linha_planilha=item.get_value("linha_planilha"),
+                        )
+                        resultado["web_automation"] = evidencia_web
+                        resultado["screenshot"] = evidencia_web.get("screenshot")
+                    except Exception as erro_web:
+                        resultado["web_automation_error"] = str(erro_web)
+                        if not resultado["divergencias"]:
+                            item.report_error(
+                                error_type=ErrorType.SYSTEM,
+                                finish_message=f"Falha na automacao web: {erro_web}",
+                            )
+                            falhados += 1
+                            logger.exception(
+                                "Falha na automacao web do lote %s: %s",
+                                resultado["lote_id"],
+                                erro_web,
+                            )
+                            continue
+
+                        logger.exception(
+                            "Falha ao gerar evidencia web do lote divergente %s: %s",
+                            resultado["lote_id"],
+                            erro_web,
+                        )
+
                 if resultado["divergencias"]:
                     item.report_error(
                         error_type=ErrorType.BUSINESS,
@@ -115,6 +153,12 @@ def main():
                     processados += 1
                     logger.info("Item %s processado.", resultado["lote_id"])
         else:
+            if WEB_AUTOMATION_ENABLED:
+                logger.warning(
+                    "Automacao web habilitada, mas o modo local por planilha nao "
+                    "executa a tela por item. Use o fluxo com DataPool para acionar "
+                    "Playwright ou Selenium por lote."
+                )
             total = resumo_analise["total_registros"]
             falhados = resumo_analise["registros_com_divergencia"]
             processados = total - falhados
@@ -145,6 +189,7 @@ def main():
                 artifact_name="inspecao_lotes_dia_analisado.xlsx",
                 filepath=str(caminho_planilha_analisada),
             )
+            _publicar_screenshots(maestro, task_id, resumo_divergencias)
             maestro.finish_task(
                 task_id=task_id,
                 status=AutomationTaskFinishStatus.SUCCESS,
@@ -186,6 +231,24 @@ def main():
             except Exception:
                 logger.exception("Não foi possível reportar a falha ao Maestro.")
         raise
+
+
+def _publicar_screenshots(maestro, task_id, resultados):
+    for indice, resultado in enumerate(resultados, start=1):
+        caminho = resultado.get("screenshot")
+        if not caminho:
+            continue
+
+        arquivo = Path(caminho)
+        if not arquivo.exists():
+            logger.warning("Screenshot registrado nao encontrado: %s", arquivo)
+            continue
+
+        maestro.post_artifact(
+            task_id=task_id,
+            artifact_name=f"screenshot_lote_{indice}.png",
+            filepath=str(arquivo),
+        )
 
 
 if __name__ == "__main__":

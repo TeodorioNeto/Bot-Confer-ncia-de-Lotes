@@ -14,6 +14,8 @@ Bot corporativo para conferir lotes de qualidade, identificar divergencias na pl
 - publica e consome itens pelo DataPool `FilaAuditoriaLotes`;
 - recupera a credencial do ERP pelo Credentials Vault;
 - registra logs locais com data, hora e severidade;
+- gera screenshot por item processado pela automacao web;
+- replica no simulador web as linhas que feriram regras, como na aba `Formulario_Analise`;
 - publica o resumo JSON e a planilha analisada como artefatos no Maestro;
 - isola erros por item para que os registros seguintes continuem sendo processados.
 
@@ -37,14 +39,19 @@ Bot corporativo para conferir lotes de qualidade, identificar divergencias na pl
 |-- config.py                # ambiente, caminhos, DataPool e Vault
 |-- dispatcher.py            # valida a planilha e alimenta a fila
 |-- main.py                  # orquestracao e finalizacao no Maestro
+|-- simulador_inspecao_lotes.html # tela web simulada para Playwright/Selenium
 |-- testar_local.py          # simulacao local do processamento por item
 |-- vault_client.py          # leitura segura da credencial do ERP
 |-- src/
 |   |-- analise_formulario.py
 |   |-- base_referencia.py
 |   |-- config.py
+|   |-- logging_config.py
 |   |-- relatorio.py
-|   `-- validacao.py
+|   |-- validacao.py
+|   |-- web_automation.py
+|   |-- web_automation_playwright.py
+|   `-- web_automation_selenium.py
 |-- tests/
 |   |-- test_analise_formulario.py
 |   `-- test_validacao.py
@@ -64,6 +71,12 @@ Instale as dependencias:
 python -m pip install -r requirements.txt
 ```
 
+Para executar a versao Playwright pela primeira vez, instale tambem o navegador usado pela biblioteca:
+
+```powershell
+python -m playwright install chromium
+```
+
 ## Configuracao local
 
 Crie um arquivo `.env` na raiz do projeto. Esse arquivo e ignorado pelo Git e nao deve ser enviado ao repositorio.
@@ -79,6 +92,10 @@ MAESTRO_KEY=
 DATAPOOL_LABEL=FilaAuditoriaLotes
 CREDENCIAL_LABEL=credencial_erp
 ARQUIVO_INSPECAO=dados_entrada/inspecao_lotes_dia.xlsx
+
+WEB_AUTOMATION_ENABLED=false
+WEB_AUTOMATION_DRIVER=playwright
+WEB_AUTOMATION_URL=
 ```
 
 Para usar os servicos do Maestro durante uma execucao local, informe as credenciais de acesso e altere `MAESTRO_ENABLED` para `true`. A senha do ERP nunca deve ser colocada no codigo nem no `.env`.
@@ -114,7 +131,7 @@ Crie um DataPool com o nome:
 FilaAuditoriaLotes
 ```
 
-O Dispatcher envia uma linha da planilha por item. O Performer marca cada item como concluido ou com erro e continua consumindo a fila mesmo quando um registro apresenta divergencia.
+O Dispatcher envia uma linha da planilha por item e inclui o campo `screenshot` para registrar a evidencia visual. O Performer marca cada item como concluido ou com erro e continua consumindo a fila mesmo quando um registro apresenta divergencia.
 
 ### Credentials Vault
 
@@ -161,6 +178,77 @@ Para simular localmente o processamento item a item:
 python testar_local.py
 ```
 
+### Automacao web de lotes
+
+O projeto mantem duas versoes da automacao web para registrar lotes e divergencias em uma tela web simulada:
+
+- `src/web_automation_playwright.py`, usando Playwright;
+- `src/web_automation_selenium.py`, usando Selenium WebDriver.
+
+Os dados preenchidos pela automacao web saem da mesma origem usada pelo BotCity: a planilha `dados_entrada/inspecao_lotes_dia.xlsx`. No fluxo corporativo, o Dispatcher le essa planilha, envia os itens para o DataPool e o Performer aciona a automacao web para registrar a evidencia do item.
+
+O arquivo `src/web_automation.py` funciona como ponto de entrada comum. Por padrao, ele executa a versao Playwright:
+
+```powershell
+python -m src.web_automation
+```
+
+Quando executado isoladamente, `python -m src.web_automation` analisa a planilha inteira configurada em `ARQUIVO_INSPECAO`, carrega o primeiro lote com ocorrencia como contexto principal da tela e insere todas as ocorrencias encontradas na tabela `Formulario_Analise` do simulador. Se nao houver ocorrencia, usa o primeiro lote valido. Se a planilha nao existir, usa apenas um registro demonstrativo para permitir teste local da tela.
+
+A URL da tela e configurada por `WEB_AUTOMATION_URL`. Se essa variavel ficar vazia, o projeto usa `simulador_inspecao_lotes.html` como tela local simulada. Em homologacao, basta apontar para a URL do sistema de inspecao de lotes:
+
+```dotenv
+WEB_AUTOMATION_URL=https://ambiente-homologacao/sistema-lotes
+```
+
+No fluxo com BotCity/DataPool, a automacao web so roda quando `WEB_AUTOMATION_ENABLED=true`. Ela e acionada pelo Performer para cada lote processado. Quando o item possui divergencias, o simulador insere a ocorrencia na tabela `Formulario_Analise` com linha da planilha, `lote_id`, problema, regra violada, acao recomendada e status de revisao.
+
+Cada item processado pela automacao web gera um screenshot em:
+
+```text
+logs/screenshots/playwright/
+logs/screenshots/selenium/
+```
+
+O caminho do screenshot e registrado no resultado do item, no `resumo_execucao.json` e, quando a execucao ocorre pelo Runner, a imagem tambem e publicada como artefato no Maestro. A pasta de screenshots fica fora do Git pelo `.gitignore`.
+
+Para executar a versao Selenium:
+
+```powershell
+$env:WEB_AUTOMATION_DRIVER='selenium'
+$env:SELENIUM_HEADLESS='true'
+python -m src.web_automation
+```
+
+Tambem e possivel executar cada versao diretamente:
+
+```powershell
+python -m src.web_automation_playwright
+python -m src.web_automation_selenium
+```
+Comparacao metrica executada localmente:
+
+| Metrica | Playwright | Selenium |
+| --- | ---: | ---: |
+| Status | SUCCESS | SUCCESS |
+| Rodadas executadas com sucesso | 3 | 3 |
+| Tempo medio | 2.855s | 10.664s |
+| Menor tempo | 2.764s | 10.121s |
+| Maior tempo | 2.962s | 11.679s |
+| Linhas analisadas | 25 | 25 |
+| Divergencias exibidas no simulador | 11 | 11 |
+| Analises registradas por screenshot | 11 | 11 |
+| Dimensao do screenshot | 1280x926 | 1280x926 |
+
+Evidencias geradas na execucao local:
+
+- `logs/comparativo_playwright_selenium.json`
+- `logs/comparativo_playwright_selenium.md`
+- `logs/screenshots/playwright/20260727_224950_766236_playwright_LG-2026-00103.png`
+- `logs/screenshots/selenium/20260727_225015_427236_selenium_LG-2026-00103.png`
+
+Na medicao realizada, ambos os drivers exibiram as mesmas 11 divergencias da planilha no simulador. O Playwright foi mais rapido no cenario medido, enquanto o Selenium produziu a mesma evidencia visual usando o fluxo WebDriver.
+
 ### Execucao pelo Runner
 
 Cadastre e publique o pacote do bot no Maestro com `main.py` como ponto de entrada. O Runner fornece os argumentos de autenticacao e o identificador da tarefa automaticamente.
@@ -203,9 +291,11 @@ Os arquivos gerados ficam na pasta `logs/`:
 | --- | --- |
 | `execucao.log` | Eventos da execucao com timestamp e severidade |
 | `resumo_execucao.json` | Totais, falhas e divergencias encontradas |
+| `screenshots/playwright/*.png` | Evidencias visuais geradas por item com Playwright |
+| `screenshots/selenium/*.png` | Evidencias visuais geradas por item com Selenium |
 | `inspecao_lotes_dia_analisado.xlsx` | Copia da planilha com `Formulario_Analise`, `lotes_ambiguos` e `Resumo_Diario` preenchidos |
 
-Quando a execucao ocorre pelo Runner, o JSON e a planilha analisada tambem sao publicados como artefatos da tarefa no Maestro.
+Quando a execucao ocorre pelo Runner, o JSON, a planilha analisada e os screenshots gerados tambem sao publicados como artefatos da tarefa no Maestro.
 
 ## Testes
 
@@ -224,7 +314,7 @@ python -m unittest discover -s tests -p "test*.py"
 Resultado esperado no estado atual:
 
 ```text
-36 passed
+45 passed
 ```
 
 ## Pacote para BotCity Maestro
@@ -239,6 +329,7 @@ dispatcher.py
 vault_client.py
 requirements.txt
 README.md
+simulador_inspecao_lotes.html
 src/
 dados_entrada/inspecao_lotes_dia.xlsx
 ```
