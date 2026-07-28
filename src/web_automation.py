@@ -29,7 +29,7 @@ def preencher_formulario(
 ):
     driver = (driver or os.getenv("WEB_AUTOMATION_DRIVER", "playwright")).lower()
     if dados_lote is None:
-        resultado_demo = carregar_primeiro_resultado_da_planilha()
+        resultado_demo = carregar_resultado_planilha_para_web()
         dados_lote = resultado_demo["dados_lote"]
         analises = resultado_demo["analises"]
         linha_planilha = resultado_demo.get("linha_planilha")
@@ -114,12 +114,20 @@ def carregar_primeiro_lote_da_planilha(caminho_planilha=None):
 
 def carregar_primeiro_resultado_da_planilha(caminho_planilha=None):
     """Carrega da planilha o primeiro lote com ocorrencia; se nao houver, usa o primeiro lote."""
+    return carregar_resultado_planilha_para_web(caminho_planilha)
+
+
+def carregar_resultado_planilha_para_web(caminho_planilha=None):
+    """Carrega a planilha inteira e prepara todas as ocorrencias para o simulador web."""
     caminho = Path(caminho_planilha or ARQUIVO_INSPECAO)
     if not caminho.exists():
         return {"dados_lote": _dados_lote_demo(), "analises": [], "linha_planilha": ""}
 
     base_referencia = carregar_base_referencia(caminho)
-    primeiro_resultado = None
+    primeiro_lote = None
+    primeiro_lote_com_ocorrencia = None
+    primeira_linha_com_ocorrencia = ""
+    analises_web = []
 
     workbook = openpyxl.load_workbook(caminho, read_only=True, data_only=True)
     try:
@@ -145,23 +153,26 @@ def carregar_primeiro_resultado_da_planilha(caminho_planilha=None):
 
                 dados_lote = dict(zip(COLUNAS_ESTRUTURA, valores_linha))
                 resultado = processar_item(ItemPlanilhaWeb(dados_lote), base_referencia)
-                retorno = {
-                    "dados_lote": dados_lote,
-                    "analises": resultado["analises"],
-                    "linha_planilha": numero_linha,
-                }
 
-                if primeiro_resultado is None:
-                    primeiro_resultado = retorno
+                if primeiro_lote is None:
+                    primeiro_lote = dados_lote
                 if resultado["analises"]:
-                    return retorno
+                    if primeiro_lote_com_ocorrencia is None:
+                        primeiro_lote_com_ocorrencia = dados_lote
+                        primeira_linha_com_ocorrencia = numero_linha
+
+                    for analise in resultado["analises"]:
+                        analise_web = dict(analise)
+                        analise_web["linha_planilha"] = numero_linha
+                        analise_web["lote_id"] = resultado["lote_id"] or "(vazio)"
+                        analises_web.append(analise_web)
     finally:
         workbook.close()
 
-    return primeiro_resultado or {
-        "dados_lote": _dados_lote_demo(),
-        "analises": [],
-        "linha_planilha": "",
+    return {
+        "dados_lote": primeiro_lote_com_ocorrencia or primeiro_lote or _dados_lote_demo(),
+        "analises": analises_web,
+        "linha_planilha": primeira_linha_com_ocorrencia,
     }
 
 

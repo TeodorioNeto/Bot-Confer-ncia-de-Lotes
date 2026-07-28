@@ -15,10 +15,11 @@ def montar_caminho_screenshot(dados_lote, driver, screenshot_path=None):
         caminho.parent.mkdir(parents=True, exist_ok=True)
         return caminho
 
-    SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    pasta_driver = SCREENSHOTS_DIR / _nome_seguro(driver)
+    pasta_driver.mkdir(parents=True, exist_ok=True)
     lote_id = _nome_seguro(dados_lote.get("lote_id") or "lote-sem-id")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    return SCREENSHOTS_DIR / f"{timestamp}_{driver}_{lote_id}.png"
+    return pasta_driver / f"{timestamp}_{driver}_{lote_id}.png"
 
 
 def _nome_seguro(valor):

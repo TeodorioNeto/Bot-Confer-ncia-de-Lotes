@@ -1,5 +1,6 @@
 import logging
 import os
+from base64 import b64decode
 
 from dotenv import load_dotenv
 from selenium import webdriver
@@ -73,7 +74,10 @@ def preencher_formulario(
         wait.until(EC.element_to_be_clickable((By.ID, "btn-processar"))).click()
         wait.until(EC.visibility_of_element_located((By.ID, "resultado")))
         _registrar_analises(wait, dados_lote, analises or [], linha_planilha)
-        driver.save_screenshot(str(caminho_screenshot))
+        driver.execute_script(
+            "window.prepararEvidenciaVisual && window.prepararEvidenciaVisual()"
+        )
+        _salvar_screenshot_pagina_inteira(driver, caminho_screenshot)
         logger.info("Screenshot Selenium gerado em %s.", caminho_screenshot)
         return {
             "driver": "selenium",
@@ -99,8 +103,12 @@ def _status_formulario(status):
 
 def _registrar_analises(wait, dados_lote, analises, linha_planilha):
     for analise in analises:
-        _preencher(wait, "linha_planilha", linha_planilha)
-        _preencher(wait, "analise_lote_id", dados_lote.get("lote_id") or "(vazio)")
+        _preencher(wait, "linha_planilha", analise.get("linha_planilha") or linha_planilha)
+        _preencher(
+            wait,
+            "analise_lote_id",
+            analise.get("lote_id") or dados_lote.get("lote_id") or "(vazio)",
+        )
         _preencher(wait, "regra", analise.get("regra"))
         _preencher(wait, "problema", analise.get("problema"))
         _preencher(wait, "acao_recomendada", analise.get("acao"))
@@ -113,6 +121,32 @@ def _registrar_analises(wait, dados_lote, analises, linha_planilha):
             revisao
         )
         wait.until(EC.element_to_be_clickable((By.ID, "btn-adicionar-analise"))).click()
+
+
+def _salvar_screenshot_pagina_inteira(driver, caminho_screenshot):
+    metricas = driver.execute_cdp_cmd("Page.getLayoutMetrics", {})
+    tamanho = metricas["contentSize"]
+    largura = int(tamanho["width"])
+    altura = int(tamanho["height"])
+
+    driver.execute_cdp_cmd(
+        "Emulation.setDeviceMetricsOverride",
+        {
+            "mobile": False,
+            "width": max(1280, largura),
+            "height": max(720, altura),
+            "deviceScaleFactor": 1,
+        },
+    )
+    captura = driver.execute_cdp_cmd(
+        "Page.captureScreenshot",
+        {
+            "format": "png",
+            "fromSurface": True,
+            "captureBeyondViewport": True,
+        },
+    )
+    caminho_screenshot.write_bytes(b64decode(captura["data"]))
 
 
 if __name__ == "__main__":

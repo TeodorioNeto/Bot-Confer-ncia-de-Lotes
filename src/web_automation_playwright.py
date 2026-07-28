@@ -54,6 +54,7 @@ def preencher_formulario(
             page.locator("#btn-processar").click()
             page.locator("#resultado").wait_for(state="visible", timeout=10000)
             _registrar_analises(page, dados_lote, analises or [], linha_planilha)
+            page.evaluate("window.prepararEvidenciaVisual && window.prepararEvidenciaVisual()")
             page.screenshot(path=str(caminho_screenshot), full_page=True)
             logger.info("Screenshot Playwright gerado em %s.", caminho_screenshot)
             return {
@@ -74,8 +75,12 @@ def _status_formulario(status):
 
 def _registrar_analises(page, dados_lote, analises, linha_planilha):
     for analise in analises:
-        page.locator("#linha_planilha").fill(str(linha_planilha or ""))
-        page.locator("#analise_lote_id").fill(str(dados_lote.get("lote_id") or "(vazio)"))
+        page.locator("#linha_planilha").fill(
+            str(analise.get("linha_planilha") or linha_planilha or "")
+        )
+        page.locator("#analise_lote_id").fill(
+            str(analise.get("lote_id") or dados_lote.get("lote_id") or "(vazio)")
+        )
         page.locator("#regra").fill(str(analise.get("regra") or ""))
         page.locator("#problema").fill(str(analise.get("problema") or ""))
         page.locator("#acao_recomendada").fill(str(analise.get("acao") or ""))
