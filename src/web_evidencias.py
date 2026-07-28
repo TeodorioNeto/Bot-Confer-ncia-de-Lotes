@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from config import LOGS_DIR
+from config import BASE_DIR, LOGS_DIR, WEB_AUTOMATION_URL
 
 
 SCREENSHOTS_DIR = LOGS_DIR / "screenshots"
@@ -25,3 +25,11 @@ def _nome_seguro(valor):
     texto = str(valor).strip()
     texto = re.sub(r"[^A-Za-z0-9_.-]+", "_", texto)
     return texto[:80] or "lote-sem-id"
+
+
+def obter_url_automacao():
+    """Retorna a URL da tela web; usa doc.html apenas como fallback local."""
+    if WEB_AUTOMATION_URL:
+        return WEB_AUTOMATION_URL
+
+    return (BASE_DIR / "doc.html").resolve().as_uri()

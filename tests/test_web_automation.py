@@ -1,5 +1,6 @@
 from unittest.mock import Mock, patch
 
+import openpyxl
 import pytest
 
 from src import web_automation, web_evidencias
@@ -34,6 +35,35 @@ def test_monta_dados_lote_a_partir_do_item_datapool():
     assert dados["produto"] == "TV"
     assert dados["status"] == "APROVADO"
     assert "observacao" in dados
+
+
+def test_carrega_primeiro_lote_da_planilha_usada_pelo_botcity(tmp_path):
+    caminho = tmp_path / "inspecao_lotes_dia.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Inspecao_14_06_2026"
+    ws.append(["PLANILHA DE INSPECAO"])
+    ws.append(["Arquivo", "Sistema", "Registros"])
+    ws.append(
+        [
+            "lote_id",
+            "produto",
+            "linha",
+            "turno",
+            "status",
+            "responsavel",
+            "data",
+            "observacao",
+        ]
+    )
+    ws.append(["LG-2026-00101", "TV", "A", "MANHA", "APROVADO", "Ana", "14/06/2026", ""])
+    wb.save(caminho)
+
+    dados = web_automation.carregar_primeiro_lote_da_planilha(caminho)
+
+    assert dados["lote_id"] == "LG-2026-00101"
+    assert dados["produto"] == "TV"
+    assert dados["status"] == "APROVADO"
 
 
 def test_preencher_formulario_usa_playwright_por_padrao(monkeypatch):

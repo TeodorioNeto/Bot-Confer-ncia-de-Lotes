@@ -1,12 +1,11 @@
 import os
 import logging
-from pathlib import Path
 
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
 from src.validacao import normalizar_status
-from src.web_evidencias import montar_caminho_screenshot
+from src.web_evidencias import montar_caminho_screenshot, obter_url_automacao
 
 
 load_dotenv()
@@ -15,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 def preencher_formulario(dados_lote=None, credencial=None, screenshot_path=None):
     """Executa o preenchimento do formulario local usando Playwright."""
-    caminho_doc = Path("doc.html").resolve()
-    url = caminho_doc.as_uri()
+    url = obter_url_automacao()
     headless = os.getenv("PLAYWRIGHT_HEADLESS", "false").lower() == "true"
     dados_lote = dados_lote or {}
     caminho_screenshot = montar_caminho_screenshot(
