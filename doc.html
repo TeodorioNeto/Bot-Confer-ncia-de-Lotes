@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro de Lotes de Produção</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      background-color: #0b0c1b;
+      color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      background-color: #120e24;
+      border-radius: 12px;
+      border: 1px solid #ff007f;
+      box-shadow: 0 0 25px rgba(255, 0, 127, 0.25);
+      padding: 30px;
+    }
+
+    /* Cabeçalho */
+    .app-header {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 25px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .app-logo {
+      width: 42px;
+      height: 42px;
+      border: 1px solid #e056fd;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #e056fd;
+      font-size: 1.2rem;
+      background: rgba(224, 86, 253, 0.05);
+    }
+
+    .app-title h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .app-title p {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+
+    /* Formulário */
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .form-input, .form-select {
+      width: 100%;
+      padding: 12px;
+      background-color: #0d0a1a;
+      border: 1px solid #e056fd;
+      border-radius: 6px;
+      color: #ffffff;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus, .form-select:focus {
+      border-color: #ff007f;
+      box-shadow: 0 0 8px rgba(255, 0, 127, 0.4);
+    }
+
+    .form-input::placeholder {
+      color: #6b7280;
+    }
+
+    .form-select option {
+      background-color: #0d0a1a;
+      color: #ffffff;
+    }
+
+    /* Radio Buttons */
+    .radio-group {
+      display: flex;
+      gap: 15px;
+      background-color: #0d0a1a;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      align-items: center;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      color: #d1d5db;
+    }
+
+    .radio-option input[type="radio"] {
+      accent-color: #ff007f;
+      cursor: pointer;
+    }
+
+    /* Botão */
+    .btn-submit {
+      width: 100%;
+      background: linear-gradient(90deg, #ff007f, #e056fd);
+      border: none;
+      padding: 14px;
+      border-radius: 6px;
+      color: white;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+
+    .btn-submit:hover {
+      opacity: 0.9;
+    }
+
+    .btn-submit:active {
+      transform: scale(0.98);
+    }
+
+    /* Mensagem de Alerta (Sucesso) */
+    .alert-success {
+      margin-top: 20px;
+      background-color: rgba(0, 242, 254, 0.05);
+      border: 1px solid #00f2fe;
+      border-radius: 6px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      /* Oculto por padrão */
+      display: none; 
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    .alert-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid #00f2fe;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #00f2fe;
+      flex-shrink: 0;
+    }
+
+    .alert-text h4 {
+      font-size: 0.9rem;
+      color: #00f2fe;
+      margin-bottom: 2px;
+    }
+
+    .alert-text p {
+      font-size: 0.8rem;
+      color: #d1d5db;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <div class="app-header">
+      <div class="app-logo">
+        <i class="fa-solid fa-cube"></i>
+      </div>
+      <div class="app-title">
+        <h2>Cadastro de Lotes de Produção</h2>
+        <p>Sistema Corporativo – Ambiente de Teste</p>
+      </div>
+    </div>
+
+    <form id="formLote">
+      <div class="form-group">
+        <label for="lote">Número do Lote *</label>
+        <input type="text" id="lote" class="form-input" placeholder="Ex.: LOTE-2025-0001" required>
+      </div>
+
+      <div class="form-group">
+        <label for="produto">Produto *</label>
+        <select id="produto" class="form-select" required>
+          <option value="" disabled selected>Selecione um produto</option>
+          <option value="Placa Mãe V1">Placa Mãe V1</option>
+          <option value="Processador X">Processador X</option>
+          <option value="Memória RAM 16GB">Memória RAM 16GB</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Status *</label>
+        <div class="radio-group">
+          <label class="radio-option">
+            <input type="radio" name="status" value="Pendente" checked> Pendente
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="status" value="Em Processamento"> Em Processamento
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="status" value="Concluído"> Concluído
+          </label>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-submit">
+        <i class="fa-regular fa-paper-plane"></i> Processar Lote
+      </button>
+    </form>
+
+    <div id="alertSuccess" class="alert-success">
+      <div class="alert-icon">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <div class="alert-text">
+        <h4>Sucesso!</h4>
+        <p id="alertMessage">Lote processado com sucesso.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const form = document.getElementById('formLote');
+    const alertBox = document.getElementById('alertSuccess');
+    const alertMessage = document.getElementById('alertMessage');
+
+    form.addEventListener('submit', function(event) {
+      // Impede o recarregamento da página
+      event.preventDefault();
+
+      // Captura os dados do formulário
+      const lote = document.getElementById('lote').value;
+      const produto = document.getElementById('produto').value;
+      const status = document.querySelector('input[name="status"]:checked').value;
+
+      // Exibe mensagem personalizada no alerta de sucesso
+      alertMessage.innerText = `Lote "${lote}" (${produto}) processado com status: ${status}.`;
+      alertBox.style.display = 'flex';
+    });
+  </script>
+
+</body>
+</html>
