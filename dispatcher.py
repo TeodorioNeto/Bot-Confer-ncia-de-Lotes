@@ -59,12 +59,13 @@ def popular_fila(maestro=None):
         cabecalho = next(linhas)
         enviados = ignorados = 0
 
-        for linha in linhas:
+        for numero_linha, linha in enumerate(linhas, start=4):
             if linha is None or all(valor is None for valor in linha):
                 break
 
             item = dict(zip(cabecalho, linha))
             item["screenshot"] = ""
+            item["linha_planilha"] = numero_linha
             lote_id_bruto = item.get("lote_id")
             if lote_id_bruto and not LOTE_ID_PATTERN.match(
                 str(lote_id_bruto).strip()

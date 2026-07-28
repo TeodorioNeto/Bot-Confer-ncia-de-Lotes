@@ -15,6 +15,7 @@ Bot corporativo para conferir lotes de qualidade, identificar divergencias na pl
 - recupera a credencial do ERP pelo Credentials Vault;
 - registra logs locais com data, hora e severidade;
 - gera screenshot por item processado pela automacao web;
+- replica no simulador web as linhas que feriram regras, como na aba `Formulario_Analise`;
 - publica o resumo JSON e a planilha analisada como artefatos no Maestro;
 - isola erros por item para que os registros seguintes continuem sendo processados.
 
@@ -179,12 +180,12 @@ python testar_local.py
 
 ### Automacao web de lotes
 
-O projeto mantem duas versoes da automacao web para registrar lotes em uma tela web:
+O projeto mantem duas versoes da automacao web para registrar lotes e divergencias em uma tela web simulada:
 
 - `src/web_automation_playwright.py`, usando Playwright;
 - `src/web_automation_selenium.py`, usando Selenium WebDriver.
 
-Os dados preenchidos pela automacao web saem da mesma origem usada pelo BotCity: a planilha `dados_entrada/inspecao_lotes_dia.xlsx`. No fluxo corporativo, o Dispatcher le essa planilha, envia os itens para o DataPool e o Performer aciona a automacao web para cada lote valido.
+Os dados preenchidos pela automacao web saem da mesma origem usada pelo BotCity: a planilha `dados_entrada/inspecao_lotes_dia.xlsx`. No fluxo corporativo, o Dispatcher le essa planilha, envia os itens para o DataPool e o Performer aciona a automacao web para registrar a evidencia do item.
 
 O arquivo `src/web_automation.py` funciona como ponto de entrada comum. Por padrao, ele executa a versao Playwright:
 
@@ -192,7 +193,7 @@ O arquivo `src/web_automation.py` funciona como ponto de entrada comum. Por padr
 python -m src.web_automation
 ```
 
-Quando executado isoladamente, `python -m src.web_automation` carrega o primeiro lote valido da planilha configurada em `ARQUIVO_INSPECAO`. Se a planilha nao existir, usa apenas um registro demonstrativo para permitir teste local da tela.
+Quando executado isoladamente, `python -m src.web_automation` carrega o primeiro lote com ocorrencia da planilha configurada em `ARQUIVO_INSPECAO`. Se nao houver ocorrencia, usa o primeiro lote valido. Se a planilha nao existir, usa apenas um registro demonstrativo para permitir teste local da tela.
 
 A URL da tela e configurada por `WEB_AUTOMATION_URL`. Se essa variavel ficar vazia, o projeto usa `simulador_inspecao_lotes.html` como tela local simulada. Em homologacao, basta apontar para a URL do sistema de inspecao de lotes:
 
@@ -200,7 +201,7 @@ A URL da tela e configurada por `WEB_AUTOMATION_URL`. Se essa variavel ficar vaz
 WEB_AUTOMATION_URL=https://ambiente-homologacao/sistema-lotes
 ```
 
-No fluxo com BotCity/DataPool, a automacao web so roda quando `WEB_AUTOMATION_ENABLED=true`. Ela e acionada pelo Performer para cada lote sem divergencias de regra, antes de marcar o item como concluido no DataPool.
+No fluxo com BotCity/DataPool, a automacao web so roda quando `WEB_AUTOMATION_ENABLED=true`. Ela e acionada pelo Performer para cada lote processado. Quando o item possui divergencias, o simulador insere as linhas na tabela `Formulario_Analise` com linha da planilha, `lote_id`, problema, regra violada, acao recomendada e status de revisao.
 
 Cada item processado pela automacao web gera um screenshot em:
 
@@ -299,7 +300,7 @@ python -m unittest discover -s tests -p "test*.py"
 Resultado esperado no estado atual:
 
 ```text
-43 passed
+44 passed
 ```
 
 ## Pacote para BotCity Maestro

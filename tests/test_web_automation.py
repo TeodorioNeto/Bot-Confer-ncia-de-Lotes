@@ -66,6 +66,42 @@ def test_carrega_primeiro_lote_da_planilha_usada_pelo_botcity(tmp_path):
     assert dados["status"] == "APROVADO"
 
 
+def test_carrega_primeiro_resultado_com_ocorrencia_para_formulario_analise(tmp_path):
+    caminho = tmp_path / "inspecao_lotes_dia.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Inspecao_14_06_2026"
+    ws.append(["PLANILHA DE INSPECAO"])
+    ws.append(["Arquivo", "Sistema", "Registros"])
+    ws.append(
+        [
+            "lote_id",
+            "produto",
+            "linha",
+            "turno",
+            "status",
+            "responsavel",
+            "data",
+            "observacao",
+        ]
+    )
+    ws.append(["LG-2026-00101", "TV", "A", "MANHA", "APROVADO", "Ana", "14/06/2026", ""])
+    ws.append(["LG-2026-00102", "TV", "A", "MANHA", "NOK", "Bia", "14/06/2026", ""])
+
+    base = wb.create_sheet("Base_Referencia")
+    base.append(["BASE DE REFERENCIA"])
+    base.append(["lote_id", "codigo_produto", "descricao_produto", "status_cadastro"])
+    base.append(["LG-2026-00101", "P001", "TV", "ativo"])
+    base.append(["LG-2026-00102", "P002", "TV", "ativo"])
+    wb.save(caminho)
+
+    resultado = web_automation.carregar_primeiro_resultado_da_planilha(caminho)
+
+    assert resultado["dados_lote"]["lote_id"] == "LG-2026-00102"
+    assert resultado["linha_planilha"] == 5
+    assert any(analise["regra"] == "RN07" for analise in resultado["analises"])
+
+
 def test_preencher_formulario_usa_playwright_por_padrao(monkeypatch):
     monkeypatch.delenv("WEB_AUTOMATION_DRIVER", raising=False)
     preencher_playwright = Mock()
@@ -80,6 +116,8 @@ def test_preencher_formulario_usa_playwright_por_padrao(monkeypatch):
         dados_lote={"lote_id": "LG-2026-00101"},
         credencial=None,
         screenshot_path=None,
+        analises=None,
+        linha_planilha=None,
     )
 
 
@@ -97,6 +135,8 @@ def test_preencher_formulario_usa_selenium_quando_configurado(monkeypatch):
         dados_lote={"lote_id": "LG-2026-00101"},
         credencial=None,
         screenshot_path=None,
+        analises=None,
+        linha_planilha=None,
     )
 
 
@@ -123,6 +163,8 @@ def test_preencher_formulario_repassa_caminho_screenshot(monkeypatch, tmp_path):
         dados_lote={"lote_id": "LG-2026-00101"},
         credencial=None,
         screenshot_path=screenshot,
+        analises=None,
+        linha_planilha=None,
     )
 
 
