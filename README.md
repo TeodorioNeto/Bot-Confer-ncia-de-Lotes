@@ -237,6 +237,29 @@ Comparacao pratica:
 | Velocidade percebida | Geralmente mais rapido no setup apos instalacao | Pode ser mais lento na primeira execucao por causa do driver |
 | Uso recomendado | Fluxo principal da automacao web local | Comparacao, compatibilidade WebDriver e estudo da Aula 18 |
 
+Comparacao metrica executada localmente:
+
+| Metrica | Playwright | Selenium |
+| --- | ---: | ---: |
+| Status | SUCCESS | SUCCESS |
+| Rodadas executadas com sucesso | 3 | 3 |
+| Tempo medio | 2.855s | 10.664s |
+| Menor tempo | 2.764s | 10.121s |
+| Maior tempo | 2.962s | 11.679s |
+| Linhas analisadas | 25 | 25 |
+| Divergencias exibidas no simulador | 11 | 11 |
+| Analises registradas por screenshot | 11 | 11 |
+| Dimensao do screenshot | 1280x926 | 1280x926 |
+
+Evidencias geradas na execucao local:
+
+- `logs/comparativo_playwright_selenium.json`
+- `logs/comparativo_playwright_selenium.md`
+- `logs/screenshots/playwright/20260727_224950_766236_playwright_LG-2026-00103.png`
+- `logs/screenshots/selenium/20260727_225015_427236_selenium_LG-2026-00103.png`
+
+Na medicao realizada, ambos os drivers exibiram as mesmas 11 divergencias da planilha no simulador. O Playwright foi mais rapido no cenario medido, enquanto o Selenium produziu a mesma evidencia visual usando o fluxo WebDriver.
+
 ### Execucao pelo Runner
 
 Cadastre e publique o pacote do bot no Maestro com `main.py` como ponto de entrada. O Runner fornece os argumentos de autenticacao e o identificador da tarefa automaticamente.
