@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def preencher_formulario(dados_lote=None, credencial=None, screenshot_path=None):
-    """Executa o preenchimento do formulario local usando Playwright."""
+    """Executa o preenchimento da tela simulada de inspecao usando Playwright."""
     url = obter_url_automacao()
     headless = os.getenv("PLAYWRIGHT_HEADLESS", "false").lower() == "true"
     dados_lote = dados_lote or {}
@@ -28,15 +28,25 @@ def preencher_formulario(dados_lote=None, credencial=None, screenshot_path=None)
         page = browser.new_page(viewport={"width": 1280, "height": 720})
 
         try:
-            logger.info("Iniciando automacao Playwright para lote %s.", dados_lote.get("lote_id"))
+            logger.info(
+                "Iniciando automacao Playwright para lote %s.",
+                dados_lote.get("lote_id"),
+            )
             page.goto(url)
-            page.locator("#lote").fill(str(dados_lote.get("lote_id") or ""))
-            _selecionar_produto(page, dados_lote.get("produto"))
-            page.locator(
-                f"input[name='status'][value='{_status_formulario(dados_lote.get('status'))}']"
-            ).check()
-            page.locator("button[type='submit']").click()
-            page.locator("#alertSuccess").wait_for(state="visible", timeout=10000)
+            page.locator("#lote_id").fill(str(dados_lote.get("lote_id") or ""))
+            page.locator("#produto").fill(str(dados_lote.get("produto") or ""))
+            page.locator("#linha").fill(str(dados_lote.get("linha") or ""))
+            page.locator("#turno").fill(str(dados_lote.get("turno") or ""))
+            page.locator("#status").select_option(
+                _status_formulario(dados_lote.get("status"))
+            )
+            page.locator("#responsavel").fill(
+                str(dados_lote.get("responsavel") or "")
+            )
+            page.locator("#data").fill(str(dados_lote.get("data") or ""))
+            page.locator("#observacao").fill(str(dados_lote.get("observacao") or ""))
+            page.locator("#btn-processar").click()
+            page.locator("#resultado").wait_for(state="visible", timeout=10000)
             page.screenshot(path=str(caminho_screenshot), full_page=True)
             logger.info("Screenshot Playwright gerado em %s.", caminho_screenshot)
             return {"driver": "playwright", "screenshot": str(caminho_screenshot)}
@@ -44,24 +54,11 @@ def preencher_formulario(dados_lote=None, credencial=None, screenshot_path=None)
             browser.close()
 
 
-def _selecionar_produto(page, produto):
-    opcoes = page.locator("#produto option").evaluate_all(
-        "(options) => options.map((option) => option.value)"
-    )
-    produto = str(produto or "").strip()
-    if produto in opcoes:
-        page.locator("#produto").select_option(value=produto)
-    else:
-        page.locator("#produto").select_option(index=1)
-
-
 def _status_formulario(status):
     status_normalizado = normalizar_status(status)
-    if status_normalizado == "PENDENTE":
-        return "Pendente"
-    if status_normalizado == "APROVADO":
-        return "Concluído"
-    return "Em Processamento"
+    if status_normalizado in {"APROVADO", "REPROVADO", "PENDENTE"}:
+        return status_normalizado
+    return "PENDENTE"
 
 
 if __name__ == "__main__":
