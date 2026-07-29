@@ -19,42 +19,25 @@ def montar_dados_lote(item):
     return {campo: item.get_value(campo) for campo in COLUNAS_ESTRUTURA}
 
 
-def preencher_formulario(
-    dados_lote=None,
-    credencial=None,
-    driver=None,
-    screenshot_path=None,
-    analises=None,
-    linha_planilha=None,
-):
+def processar_datapool(driver=None, delay_passo=None, callback_log=None, theme="dark"):
+    """Executa a automacao web no fluxo atual baseado em DataPool/planilha."""
     driver = (driver or os.getenv("WEB_AUTOMATION_DRIVER", "playwright")).lower()
-    if dados_lote is None:
-        resultado_demo = carregar_resultado_planilha_para_web()
-        dados_lote = resultado_demo["dados_lote"]
-        analises = resultado_demo["analises"]
-        linha_planilha = resultado_demo.get("linha_planilha")
 
     if driver == "selenium":
-        from src.web_automation_selenium import preencher_formulario as preencher_selenium
+        from src.web_automation_selenium import processar_datapool_selenium
 
-        return preencher_selenium(
-            dados_lote=dados_lote,
-            credencial=credencial,
-            screenshot_path=screenshot_path,
-            analises=analises,
-            linha_planilha=linha_planilha,
-        )
+        kwargs = {"callback_log": callback_log, "theme": theme}
+        if delay_passo is not None:
+            kwargs["delay_passo"] = delay_passo
+        return processar_datapool_selenium(**kwargs)
 
     if driver == "playwright":
-        from src.web_automation_playwright import preencher_formulario as preencher_playwright
+        from src.web_automation_playwright import processar_datapool_playwright
 
-        return preencher_playwright(
-            dados_lote=dados_lote,
-            credencial=credencial,
-            screenshot_path=screenshot_path,
-            analises=analises,
-            linha_planilha=linha_planilha,
-        )
+        kwargs = {"callback_log": callback_log, "theme": theme}
+        if delay_passo is not None:
+            kwargs["delay_passo"] = delay_passo
+        return processar_datapool_playwright(**kwargs)
 
     raise ValueError(
         "WEB_AUTOMATION_DRIVER deve ser 'playwright' ou 'selenium'. "
@@ -196,4 +179,4 @@ class ItemPlanilhaWeb:
 
 
 if __name__ == "__main__":
-    preencher_formulario()
+    processar_datapool()

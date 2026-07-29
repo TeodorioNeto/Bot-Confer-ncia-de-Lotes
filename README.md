@@ -46,7 +46,6 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 .
 |-- bot.py                 # regras aplicadas a cada item
 |-- config.py              # ambiente, caminhos, DataPool e Vault
-|-- dispatcher.py          # valida a planilha e alimenta a fila
 |-- main.py                # orquestracao e finalizacao no Maestro
 |-- simulador_inspecao_lotes.html # tela web simulada para Playwright/Selenium
 |-- testar_local.py        # simulacao local do processamento por item
@@ -55,7 +54,7 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 |   |-- analise_formulario.py
 |   |-- base_referencia.py
 |   |-- config.py
-|   |-- logging_config.py
+|   |-- logger.py
 |   |-- relatorio.py
 |   |-- validacao.py
 |   |-- web_automation.py
@@ -163,13 +162,7 @@ Somente o usuário pode aparecer nos logs. A senha nunca é registrada.
 Planilha -> Dispatcher -> DataPool -> Performer -> Relatorio e evidencias
 ```
 
-Quando `main.py` está conectado ao Maestro, ele executa o Dispatcher antes do Performer. Não é necessário iniciar `dispatcher.py` separadamente nesse fluxo.
-
-O Dispatcher também pode ser executado de forma independente para apenas alimentar a fila:
-
-```powershell
-python dispatcher.py
-```
+Quando `main.py` esta conectado ao Maestro, ele consome os itens disponiveis no DataPool e consolida as evidencias da execucao. A automacao web atual tambem pode processar a planilha local diretamente pelos drivers Playwright ou Selenium.
 
 ## Arquitetura da Automação
 
@@ -177,7 +170,7 @@ python dispatcher.py
 sequenceDiagram
     autonumber
     participant Maestro as BotCity Maestro
-    participant Dispatcher as Dispatcher (dispatcher.py)
+    participant Main as Main (main.py)
     participant DataPool as DataPool (FilaAuditoriaLotes)
     participant Performer as Performer / Bot (bot.py)
     participant Vault as Credentials Vault
@@ -186,13 +179,12 @@ sequenceDiagram
 
     Note over Maestro, Logs: Início do Fluxo Corporativo de Auditoria
 
-    Maestro->>Dispatcher: Aciona execução inicial (main.py)
-    Dispatcher->>Dispatcher: Valida pasta e planilha (Fail Fast)
-    Dispatcher->>Vault: Recupera credenciais do ERP (se habilitado)
-    Vault-->>Dispatcher: Retorna credenciais seguras
+    Maestro->>Main: Aciona execução inicial (main.py)
+    Main->>Main: Valida pasta e planilha (Fail Fast)
+    Main->>Vault: Recupera credenciais do ERP (se habilitado)
+    Vault-->>Main: Retorna credenciais seguras
 
-    Dispatcher->>Dispatcher: Analisa planilhas e valida RN01 a RN07
-    Dispatcher->>DataPool: Publica itens da auditoria (com rotas e screenshots)
+    Main->>Main: Analisa planilhas e valida RN01 a RN07
 
     loop Para cada item na Fila
         Maestro->>Performer: Aciona Performer para consumir item
@@ -249,15 +241,15 @@ O arquivo `src/web_automation.py` funciona como ponto de entrada comum. Por padr
 python -m src.web_automation
 ```
 
-Quando executado isoladamente, `python -m src.web_automation` analisa a planilha inteira configurada em `ARQUIVO_INSPECAO`, carrega o primeiro lote com ocorrência como contexto principal da tela e insere todas as ocorrências encontradas na tabela `Formulario_Analise` do simulador. Se não houver ocorrência, usa o primeiro lote válido. Se a planilha não existir, usa apenas um registro demonstrativo para permitir teste local da tela.
+Quando executado isoladamente, `python -m src.web_automation` usa o driver configurado em `WEB_AUTOMATION_DRIVER` e dispara o processamento em lote da planilha de entrada pela camada de Page Objects. O fluxo lê os lotes tratados, acessa a tela web local e gera evidências visuais para os registros processados.
 
-A URL da tela é configurada por `WEB_AUTOMATION_URL`. Se essa variável ficar vazia, o projeto usa `simulador_inspecao_lotes.html` como tela local simulada. Em homologação, basta apontar para a URL do sistema de inspeção de lotes:
+A URL da tela é configurada por `WEB_AUTOMATION_URL`. Se essa variável ficar vazia, o projeto usa `doc.html` como tela local simulada. Em homologação, basta apontar para a URL do sistema de inspeção de lotes:
 
 ```
 WEB_AUTOMATION_URL=https://ambiente-homologacao/sistema-lotes
 ```
 
-No fluxo com BotCity/DataPool, a automação web só roda quando `WEB_AUTOMATION_ENABLED=true`. Ela é acionada pelo Performer para cada lote processado. Quando o item possui divergências, o simulador insere a ocorrência na tabela `Formulario_Analise` com linha da planilha, `lote_id`, problema, regra violada, ação recomendada e status de revisão.
+No fluxo com BotCity/DataPool, a automação web só roda quando `WEB_AUTOMATION_ENABLED=true`. Na versão atual, ela é acionada como processamento web consolidado pelo driver escolhido, reaproveitando a planilha de entrada e os Page Objects de login/formulário.
 
 Cada item processado pela automação web gera um screenshot em:
 
@@ -266,7 +258,7 @@ logs/screenshots/playwright/
 logs/screenshots/selenium/
 ```
 
-O caminho do screenshot é registrado no resultado do item, no `resumo_execucao.json` e, quando a execução ocorre pelo Runner, a imagem também é publicada como artefato no Maestro. A pasta de screenshots fica fora do Git pelo `.gitignore`.
+O caminho dos screenshots fica organizado por driver em `logs/screenshots/`. A pasta de screenshots fica fora do Git pelo `.gitignore`.
 
 Para executar a versão Selenium:
 
@@ -382,7 +374,6 @@ O pacote de upload deve seguir o layout abaixo, igual ao zip usado em aula:
 main.py
 bot.py
 config.py
-dispatcher.py
 vault_client.py
 requirements.txt
 README.md

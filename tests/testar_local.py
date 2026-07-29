@@ -1,5 +1,5 @@
 """
-testar_local.py - simula o fluxo dispatcher -> fila -> performer
+testar_local.py - simula o fluxo planilha -> fila -> performer
 inteiramente em memoria, sem precisar do Maestro. 
 """
 import re

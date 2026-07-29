@@ -145,69 +145,59 @@ def test_carrega_todas_ocorrencias_da_planilha_para_formulario_analise(tmp_path)
     assert 6 in linhas
 
 
-def test_preencher_formulario_usa_playwright_por_padrao(monkeypatch):
+def test_processar_datapool_usa_playwright_por_padrao(monkeypatch):
     monkeypatch.delenv("WEB_AUTOMATION_DRIVER", raising=False)
-    preencher_playwright = Mock()
+    processar_playwright = Mock(return_value=2)
 
     with patch(
-        "src.web_automation_playwright.preencher_formulario",
-        preencher_playwright,
+        "src.web_automation_playwright.processar_datapool_playwright",
+        processar_playwright,
     ):
-        web_automation.preencher_formulario({"lote_id": "LG-2026-00101"})
+        resultado = web_automation.processar_datapool()
 
-    preencher_playwright.assert_called_once_with(
-        dados_lote={"lote_id": "LG-2026-00101"},
-        credencial=None,
-        screenshot_path=None,
-        analises=None,
-        linha_planilha=None,
-    )
+    assert resultado == 2
+    processar_playwright.assert_called_once_with(callback_log=None, theme="dark")
 
 
-def test_preencher_formulario_usa_selenium_quando_configurado(monkeypatch):
+def test_processar_datapool_usa_selenium_quando_configurado(monkeypatch):
     monkeypatch.setenv("WEB_AUTOMATION_DRIVER", "selenium")
-    preencher_selenium = Mock()
+    processar_selenium = Mock(return_value=3)
 
     with patch(
-        "src.web_automation_selenium.preencher_formulario",
-        preencher_selenium,
+        "src.web_automation_selenium.processar_datapool_selenium",
+        processar_selenium,
     ):
-        web_automation.preencher_formulario({"lote_id": "LG-2026-00101"})
+        resultado = web_automation.processar_datapool()
 
-    preencher_selenium.assert_called_once_with(
-        dados_lote={"lote_id": "LG-2026-00101"},
-        credencial=None,
-        screenshot_path=None,
-        analises=None,
-        linha_planilha=None,
-    )
+    assert resultado == 3
+    processar_selenium.assert_called_once_with(callback_log=None, theme="dark")
 
 
-def test_preencher_formulario_rejeita_driver_desconhecido():
+def test_processar_datapool_rejeita_driver_desconhecido():
     with pytest.raises(ValueError):
-        web_automation.preencher_formulario(driver="desconhecido")
+        web_automation.processar_datapool(driver="desconhecido")
 
 
-def test_preencher_formulario_repassa_caminho_screenshot(monkeypatch, tmp_path):
+def test_processar_datapool_repassa_opcoes_da_nova_versao(monkeypatch):
     monkeypatch.setenv("WEB_AUTOMATION_DRIVER", "selenium")
-    preencher_selenium = Mock()
-    screenshot = tmp_path / "evidencias" / "lote.png"
+    processar_selenium = Mock(return_value=4)
+    callback_log = Mock()
 
     with patch(
-        "src.web_automation_selenium.preencher_formulario",
-        preencher_selenium,
+        "src.web_automation_selenium.processar_datapool_selenium",
+        processar_selenium,
     ):
-        web_automation.preencher_formulario(
-            {"lote_id": "LG-2026-00101"},
-            screenshot_path=screenshot,
+        resultado = web_automation.processar_datapool(
+            delay_passo=0.4,
+            callback_log=callback_log,
+            theme="light",
         )
 
-    preencher_selenium.assert_called_once_with(
-        dados_lote={"lote_id": "LG-2026-00101"},
-        credencial=None,
-        screenshot_path=screenshot,
-        analises=None,
-        linha_planilha=None,
+    assert resultado == 4
+    processar_selenium.assert_called_once_with(
+        delay_passo=0.4,
+        callback_log=callback_log,
+        theme="light",
     )
 
 

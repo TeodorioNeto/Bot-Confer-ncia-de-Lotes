@@ -6,7 +6,6 @@ sem tentar processar nada.
 """
 
 import json
-import logging
 from datetime import datetime
 from pathlib import Path
 from botcity.maestro import BotMaestroSDK, AutomationTaskFinishStatus, AlertType, ErrorType
@@ -23,16 +22,14 @@ from config import (
     WEB_AUTOMATION_DRIVER,
     WEB_AUTOMATION_ENABLED,
 )
-from src.logging_config import configurar_logging
+from src.logger import setup_logger
 from vault_client import obter_credencial_erp
 from bot import processar_item
-from dispatcher import popular_fila
 from src.analise_formulario import analisar_e_preencher_formulario
 from src.base_referencia import carregar_base_referencia
-from src.web_automation import montar_dados_lote, preencher_formulario
+from src.web_automation import processar_datapool as processar_datapool_web
 
-configurar_logging(LOGS_DIR)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 
@@ -41,6 +38,7 @@ def main():
     task_id = None
     credencial_erp = None
     total = processados = falhados = 0
+    resultado_automacao_web = None
     try:
         maestro = BotMaestroSDK.from_sys_args()
         task_id = getattr(maestro, "task_id", None)
@@ -74,16 +72,29 @@ def main():
         if VAULT_ENABLED and conectado_maestro:
             credencial_erp = obter_credencial_erp(maestro)
 
-        # O Dispatcher sempre precede o Performer quando há conexão com o Maestro.
-        if conectado_maestro:
-            logger.info("Executando Dispatcher antes do Performer.")
-            popular_fila(maestro)
-
         caminho_planilha_analisada = LOGS_DIR / "inspecao_lotes_dia_analisado.xlsx"
         _, resultados_planilha, resumo_analise = analisar_e_preencher_formulario(
             ARQUIVO_INSPECAO,
             caminho_planilha_analisada,
         )
+
+        if WEB_AUTOMATION_ENABLED:
+            try:
+                logger.info(
+                    "Executando automacao web consolidada via %s.",
+                    WEB_AUTOMATION_DRIVER,
+                )
+                total_web = processar_datapool_web(driver=WEB_AUTOMATION_DRIVER)
+                resultado_automacao_web = {
+                    "driver": WEB_AUTOMATION_DRIVER,
+                    "itens_processados": total_web,
+                }
+            except Exception as erro_web:
+                resultado_automacao_web = {
+                    "driver": WEB_AUTOMATION_DRIVER,
+                    "erro": str(erro_web),
+                }
+                logger.exception("Falha na automacao web consolidada: %s", erro_web)
 
         resumo_divergencias = []
         if conectado_maestro:
@@ -98,44 +109,6 @@ def main():
                 total += 1
                 resultado = processar_item(item, base_referencia)
                 resumo_divergencias.append(resultado)
-
-                if WEB_AUTOMATION_ENABLED:
-                    try:
-                        logger.info(
-                            "Executando automacao web via %s para o lote %s.",
-                            WEB_AUTOMATION_DRIVER,
-                            resultado["lote_id"],
-                        )
-                        caminho_screenshot = item.get_value("screenshot") or None
-                        evidencia_web = preencher_formulario(
-                            dados_lote=montar_dados_lote(item),
-                            credencial=credencial_erp,
-                            screenshot_path=caminho_screenshot,
-                            analises=resultado["analises"],
-                            linha_planilha=item.get_value("linha_planilha"),
-                        )
-                        resultado["web_automation"] = evidencia_web
-                        resultado["screenshot"] = evidencia_web.get("screenshot")
-                    except Exception as erro_web:
-                        resultado["web_automation_error"] = str(erro_web)
-                        if not resultado["divergencias"]:
-                            item.report_error(
-                                error_type=ErrorType.SYSTEM,
-                                finish_message=f"Falha na automacao web: {erro_web}",
-                            )
-                            falhados += 1
-                            logger.exception(
-                                "Falha na automacao web do lote %s: %s",
-                                resultado["lote_id"],
-                                erro_web,
-                            )
-                            continue
-
-                        logger.exception(
-                            "Falha ao gerar evidencia web do lote divergente %s: %s",
-                            resultado["lote_id"],
-                            erro_web,
-                        )
 
                 if resultado["divergencias"]:
                     item.report_error(
@@ -155,9 +128,9 @@ def main():
         else:
             if WEB_AUTOMATION_ENABLED:
                 logger.warning(
-                    "Automacao web habilitada, mas o modo local por planilha nao "
-                    "executa a tela por item. Use o fluxo com DataPool para acionar "
-                    "Playwright ou Selenium por lote."
+                    "Automacao web habilitada no modo local; o processamento "
+                    "consolidado por planilha ja foi executado via %s.",
+                    WEB_AUTOMATION_DRIVER,
                 )
             total = resumo_analise["total_registros"]
             falhados = resumo_analise["registros_com_divergencia"]
@@ -170,6 +143,7 @@ def main():
             "processados": processados,
             "falhados": falhados,
             "analise_planilha": resumo_analise,
+            "web_automation": resultado_automacao_web,
             "divergencias": resumo_divergencias,
         }
         caminho_resumo = LOGS_DIR / "resumo_execucao.json"
