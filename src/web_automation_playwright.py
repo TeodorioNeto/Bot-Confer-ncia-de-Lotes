@@ -75,7 +75,12 @@ def carregar_datapool_tratado():
     return lotes_tratados
 
 
-def processar_datapool_playwright(delay_passo=0.3, callback_log=None, theme="dark"):
+def processar_datapool_playwright(
+    delay_passo=0.3,
+    callback_log=None,
+    theme="dark",
+    return_evidencias=False,
+):
     url = obter_url_automacao()
     headless = os.getenv("PLAYWRIGHT_HEADLESS", "false").lower() == "true"
 
@@ -101,32 +106,36 @@ def processar_datapool_playwright(delay_passo=0.3, callback_log=None, theme="dar
             page.goto(url)
 
             # Aplica o tema correto na nova janela do robô
-            if theme == "light":
-                page.evaluate("""
-                    document.documentElement.setAttribute('data-theme', 'light');
-                    const toggle = document.getElementById('themeToggle');
-                    if (toggle) toggle.checked = true;
-                """)
-
             login_page = LoginPagePlaywright(page, delay_passo=delay_passo)
             form_page = FormPagePlaywright(page, delay_passo=delay_passo)
+            form_page.aplicar_tema(theme)
 
             emitir_log("Realizando autenticação na plataforma...", "info", callback_log)
             login_page.fazer_login()
 
             processados = 0
+            evidencias = []
             for idx, item in enumerate(lotes, start=1):
                 msg_lote = f"[{idx:02d}/{len(lotes):02d}] Lote: {item['lote_id']} | Produto: {item['produto']} | Status: {item['status']}"
                 emitir_log(msg_lote, "info", callback_log)
 
-                page.evaluate("document.getElementById('formLote').reset()")
+                form_page.resetar_formulario()
 
                 form_page.preencher_lote(item)
                 sucesso = form_page.submeter_e_aguardar()
 
+                form_page.preparar_evidencia_visual()
                 caminho_screenshot = montar_caminho_screenshot(item, "playwright")
                 caminho_screenshot.parent.mkdir(parents=True, exist_ok=True)
                 page.screenshot(path=str(caminho_screenshot))
+                item["screenshot"] = str(caminho_screenshot)
+                evidencias.append(
+                    {
+                        "lote_id": item.get("lote_id"),
+                        "screenshot": str(caminho_screenshot),
+                        "driver": "playwright",
+                    }
+                )
 
                 if sucesso:
                     emitir_log(f"Lote {item['lote_id']} gravado com SUCESSO.", "success", callback_log)
@@ -137,6 +146,8 @@ def processar_datapool_playwright(delay_passo=0.3, callback_log=None, theme="dar
 
             emitir_log(f"Processamento finalizado com sucesso! Total: {processados} lotes", "success", callback_log)
             time.sleep(1)
+            if return_evidencias:
+                return {"total": processados, "evidencias": evidencias}
             return processados
 
         except Exception as e:

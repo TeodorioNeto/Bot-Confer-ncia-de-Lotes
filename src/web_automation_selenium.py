@@ -59,7 +59,12 @@ def criar_driver():
     return driver
 
 
-def processar_datapool_selenium(delay_passo=0.2, callback_log=None, theme="dark"):
+def processar_datapool_selenium(
+    delay_passo=0.2,
+    callback_log=None,
+    theme="dark",
+    return_evidencias=False,
+):
     """Lê a planilha de inspeção e processa cada lote sequencialmente via Selenium com suporte a temas."""
     url = obter_url_automacao()
     lotes = carregar_datapool_tratado()
@@ -77,34 +82,36 @@ def processar_datapool_selenium(delay_passo=0.2, callback_log=None, theme="dark"
         emitir_log_selenium(f"Acessando a URL do formulário: {url}", "info", callback_log)
         driver.get(url)
 
-        # Aplica o tema correto na nova janela do Selenium via JavaScript
-        if theme == "light":
-            driver.execute_script("""
-                document.documentElement.setAttribute('data-theme', 'light');
-                const toggle = document.getElementById('themeToggle');
-                if (toggle) toggle.checked = true;
-            """)
-
         login_page = LoginPageSelenium(driver, wait, delay_passo=delay_passo)
         form_page = FormPageSelenium(driver, wait, delay_passo=delay_passo)
+        form_page.aplicar_tema(theme)
 
         emitir_log_selenium("Realizando autenticação na plataforma...", "info", callback_log)
         login_page.fazer_login()
 
         processados = 0
+        evidencias = []
         for idx, item in enumerate(lotes, start=1):
             msg_lote = f"[{idx:02d}/{len(lotes):02d}] Lote: {item['lote_id']} | Produto: {item['produto']} | Status: {item['status']}"
             emitir_log_selenium(msg_lote, "info", callback_log)
 
-            driver.execute_script("document.getElementById('formLote').reset();")
+            form_page.resetar_formulario()
 
             form_page.preencher_lote(item)
             sucesso = form_page.submeter_e_aguardar()
 
-            driver.execute_script("window.prepararEvidenciaVisual && window.prepararEvidenciaVisual()")
+            form_page.preparar_evidencia_visual()
             caminho_screenshot = montar_caminho_screenshot(item, "selenium")
             caminho_screenshot.parent.mkdir(parents=True, exist_ok=True)
             driver.save_screenshot(str(caminho_screenshot))
+            item["screenshot"] = str(caminho_screenshot)
+            evidencias.append(
+                {
+                    "lote_id": item.get("lote_id"),
+                    "screenshot": str(caminho_screenshot),
+                    "driver": "selenium",
+                }
+            )
 
             if sucesso:
                 emitir_log_selenium(f"Lote {item['lote_id']} gravado com SUCESSO.", "success", callback_log)
@@ -115,6 +122,8 @@ def processar_datapool_selenium(delay_passo=0.2, callback_log=None, theme="dark"
 
         emitir_log_selenium(f"Processamento finalizado com sucesso! Total: {processados} lotes", "success", callback_log)
         time.sleep(1)
+        if return_evidencias:
+            return {"total": processados, "evidencias": evidencias}
         return processados
 
     except Exception as e:

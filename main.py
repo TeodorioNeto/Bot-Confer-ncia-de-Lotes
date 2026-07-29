@@ -25,6 +25,7 @@ from config import (
 from src.logger import setup_logger
 from vault_client import obter_credencial_erp
 from bot import processar_item
+from dispatcher import popular_fila
 from src.analise_formulario import analisar_e_preencher_formulario
 from src.base_referencia import carregar_base_referencia
 from src.web_automation import processar_datapool as processar_datapool_web
@@ -72,6 +73,10 @@ def main():
         if VAULT_ENABLED and conectado_maestro:
             credencial_erp = obter_credencial_erp(maestro)
 
+        if conectado_maestro:
+            logger.info("Executando Dispatcher antes do consumo do DataPool.")
+            popular_fila(maestro)
+
         caminho_planilha_analisada = LOGS_DIR / "inspecao_lotes_dia_analisado.xlsx"
         _, resultados_planilha, resumo_analise = analisar_e_preencher_formulario(
             ARQUIVO_INSPECAO,
@@ -84,10 +89,14 @@ def main():
                     "Executando automacao web consolidada via %s.",
                     WEB_AUTOMATION_DRIVER,
                 )
-                total_web = processar_datapool_web(driver=WEB_AUTOMATION_DRIVER)
+                resultado_web = processar_datapool_web(
+                    driver=WEB_AUTOMATION_DRIVER,
+                    return_evidencias=True,
+                )
                 resultado_automacao_web = {
                     "driver": WEB_AUTOMATION_DRIVER,
-                    "itens_processados": total_web,
+                    "itens_processados": resultado_web["total"],
+                    "evidencias": resultado_web["evidencias"],
                 }
             except Exception as erro_web:
                 resultado_automacao_web = {
@@ -164,6 +173,12 @@ def main():
                 filepath=str(caminho_planilha_analisada),
             )
             _publicar_screenshots(maestro, task_id, resumo_divergencias)
+            if resultado_automacao_web:
+                _publicar_screenshots(
+                    maestro,
+                    task_id,
+                    resultado_automacao_web.get("evidencias", []),
+                )
             maestro.finish_task(
                 task_id=task_id,
                 status=AutomationTaskFinishStatus.SUCCESS,

@@ -38,7 +38,7 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 | RN04 | O status deve ser `APROVADO`, `REPROVADO` ou `PENDENTE` |
 | RN05 | `OK` equivale a `APROVADO` e `NOK` equivale a `REPROVADO`; a normalização ocorre antes da validação |
 | RN06 | Status não reconhecível nem normalizável é um caso ambíguo encaminhado para revisão humana |
-| RN07 | Lote com status `REPROVADO` ou `REPROVADO/OK` deve ter a observação preenchida |
+| RN07 | Lote com status `REPROVADO` ou `NOK` deve ter a observação preenchida |
 
 ## Estrutura do projeto
 
@@ -46,9 +46,9 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 .
 |-- bot.py                 # regras aplicadas a cada item
 |-- config.py              # ambiente, caminhos, DataPool e Vault
+|-- dispatcher.py          # valida a planilha e publica os lotes no DataPool
 |-- main.py                # orquestracao e finalizacao no Maestro
 |-- simulador_inspecao_lotes.html # tela web simulada para Playwright/Selenium
-|-- testar_local.py        # simulacao local do processamento por item
 |-- vault_client.py        # leitura segura da credencial do ERP
 |-- src/
 |   |-- analise_formulario.py
@@ -62,7 +62,10 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 |   `-- web_automation_selenium.py
 |-- tests/
 |   |-- test_analise_formulario.py
-|   `-- test_validacao.py
+|   |-- test_dispatcher.py
+|   |-- test_validacao.py
+|   |-- test_web_automation.py
+|   `-- testar_local.py
 |-- dados_entrada/         # planilhas de entrada, nao versionadas
 `-- logs/                  # logs e artefatos gerados
 ```
@@ -139,7 +142,7 @@ Crie um DataPool com o nome:
 FilaAuditoriaLotes
 ```
 
-O Dispatcher envia uma linha da planilha por item e inclui o campo `screenshot` para registrar a evidência visual. O Performer marca cada item como concluído ou com erro e continua consumindo a fila mesmo quando um registro apresenta divergência.
+O Dispatcher envia uma linha da planilha por item e inclui o campo `screenshot` para registrar a evidência visual. O Performer marca cada item como concluído ou com erro e continua consumindo a fila mesmo quando um registro apresenta divergência. Quando a automação web está habilitada, o caminho de cada screenshot também é registrado no resumo JSON da execução.
 
 ### Credentials Vault
 
@@ -162,7 +165,7 @@ Somente o usuário pode aparecer nos logs. A senha nunca é registrada.
 Planilha -> Dispatcher -> DataPool -> Performer -> Relatorio e evidencias
 ```
 
-Quando `main.py` esta conectado ao Maestro, ele consome os itens disponiveis no DataPool e consolida as evidencias da execucao. A automacao web atual tambem pode processar a planilha local diretamente pelos drivers Playwright ou Selenium.
+Quando `main.py` esta conectado ao Maestro, ele executa o Dispatcher para publicar a planilha no DataPool, consome os itens disponiveis e consolida as evidencias da execucao. A automacao web atual tambem pode processar a planilha local diretamente pelos drivers Playwright ou Selenium.
 
 ## Arquitetura da Automação
 
@@ -171,6 +174,7 @@ sequenceDiagram
     autonumber
     participant Maestro as BotCity Maestro
     participant Main as Main (main.py)
+    participant Dispatcher as Dispatcher (dispatcher.py)
     participant DataPool as DataPool (FilaAuditoriaLotes)
     participant Performer as Performer / Bot (bot.py)
     participant Vault as Credentials Vault
@@ -184,17 +188,20 @@ sequenceDiagram
     Main->>Vault: Recupera credenciais do ERP (se habilitado)
     Vault-->>Main: Retorna credenciais seguras
 
-    Main->>Main: Analisa planilhas e valida RN01 a RN07
+    Main->>Dispatcher: Aciona publicacao da planilha no DataPool
+    Dispatcher->>Dispatcher: Valida RN01 e ignora linhas de rodape/legenda
+    Dispatcher->>DataPool: Publica um item por lote valido
+    Main->>Main: Analisa planilha e valida RN01 a RN07
 
     loop Para cada item na Fila
-        Maestro->>Performer: Aciona Performer para consumir item
-        Performer->>DataPool: Consome próximo lote da fila
+        Main->>Performer: Aciona processamento do item
+        Performer->>DataPool: Consome proximo lote da fila
         DataPool-->>Performer: Dados do lote e regras associadas
 
         alt Web Automation Habilitada (WEB_AUTOMATION_ENABLED=true)
-            Performer->>Web: Aciona driver (Playwright/Selenium)
+            Main->>Web: Aciona driver consolidado (Playwright/Selenium)
             Web->>Web: Simula preenchimento no sistema/HTML
-            Web-->>Performer: Gera screenshot da evidência visual
+            Web-->>Main: Gera screenshots das evidencias visuais
         end
 
         Performer->>Logs: Registra logs estruturados e atualiza abas (Formulário/Resumo)
@@ -218,7 +225,7 @@ Nesse modo, o bot analisa diretamente a planilha, preenche o formulário e grava
 Para simular localmente o processamento item a item:
 
 ```powershell
-python testar_local.py
+python tests/testar_local.py
 ```
 
 ## Automação web de lotes (Implementações Finais)
@@ -233,7 +240,7 @@ O projeto mantém duas versões da automação web para registrar lotes e diverg
 - **Playwright:** blindagem avançada de contexto e gerenciamento de estado para garantir estabilidade absoluta nas navegações em lote sem perda de referência de elementos.
 - **Selenium:** ajuste e robustez no método `is_sucesso` para evitar falsos negativos e assegurar a validação correta no fluxo WebDriver.
 
-Os dados preenchidos pela automação web saem da mesma origem usada pelo BotCity: a planilha `dados_entrada/inspecao_lotes_dia.xlsx`. No fluxo corporativo, o Dispatcher lê essa planilha, envia os itens para o DataPool e o Performer aciona a automação web para registrar a evidência do item.
+Os dados preenchidos pela automação web saem da mesma origem usada pelo BotCity: a planilha `dados_entrada/inspecao_lotes_dia.xlsx`. No fluxo corporativo, o Dispatcher lê essa planilha e envia os itens para o DataPool. Quando `WEB_AUTOMATION_ENABLED=true`, o `main.py` também aciona a automação web consolidada para registrar as evidências visuais da inspeção.
 
 O arquivo `src/web_automation.py` funciona como ponto de entrada comum. Por padrão, ele executa a versão Playwright:
 
@@ -249,7 +256,7 @@ A URL da tela é configurada por `WEB_AUTOMATION_URL`. Se essa variável ficar v
 WEB_AUTOMATION_URL=https://ambiente-homologacao/sistema-lotes
 ```
 
-No fluxo com BotCity/DataPool, a automação web só roda quando `WEB_AUTOMATION_ENABLED=true`. Na versão atual, ela é acionada como processamento web consolidado pelo driver escolhido, reaproveitando a planilha de entrada e os Page Objects de login/formulário.
+No fluxo com BotCity/DataPool, a automação web só roda quando `WEB_AUTOMATION_ENABLED=true`. Na versão atual, ela é acionada como processamento web consolidado pelo driver escolhido, reaproveitando a planilha de entrada e os Page Objects de login/formulário. O retorno dessa etapa inclui o total processado e a lista de evidências com `lote_id`, `driver` e caminho do screenshot.
 
 Cada item processado pela automação web gera um screenshot em:
 
@@ -363,7 +370,7 @@ python -m unittest discover -s tests -p "test*.py"
 Resultado esperado no estado atual:
 
 ```
-45 passed
+48 passed
 ```
 
 ## Pacote para BotCity Maestro
@@ -374,6 +381,7 @@ O pacote de upload deve seguir o layout abaixo, igual ao zip usado em aula:
 main.py
 bot.py
 config.py
+dispatcher.py
 vault_client.py
 requirements.txt
 README.md

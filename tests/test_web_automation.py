@@ -201,6 +201,34 @@ def test_processar_datapool_repassa_opcoes_da_nova_versao(monkeypatch):
     )
 
 
+def test_processar_datapool_repassa_retorno_de_evidencias(monkeypatch):
+    monkeypatch.setenv("WEB_AUTOMATION_DRIVER", "playwright")
+    retorno = {
+        "total": 1,
+        "evidencias": [
+            {
+                "lote_id": "LG-2026-00101",
+                "screenshot": "logs/screenshots/playwright/evidencia.png",
+                "driver": "playwright",
+            }
+        ],
+    }
+    processar_playwright = Mock(return_value=retorno)
+
+    with patch(
+        "src.web_automation_playwright.processar_datapool_playwright",
+        processar_playwright,
+    ):
+        resultado = web_automation.processar_datapool(return_evidencias=True)
+
+    assert resultado == retorno
+    processar_playwright.assert_called_once_with(
+        callback_log=None,
+        theme="dark",
+        return_evidencias=True,
+    )
+
+
 def test_montar_caminho_screenshot_cria_nome_seguro(monkeypatch, tmp_path):
     monkeypatch.setattr(web_evidencias, "SCREENSHOTS_DIR", tmp_path)
 

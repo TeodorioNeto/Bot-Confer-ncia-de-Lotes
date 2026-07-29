@@ -19,7 +19,13 @@ def montar_dados_lote(item):
     return {campo: item.get_value(campo) for campo in COLUNAS_ESTRUTURA}
 
 
-def processar_datapool(driver=None, delay_passo=None, callback_log=None, theme="dark"):
+def processar_datapool(
+    driver=None,
+    delay_passo=None,
+    callback_log=None,
+    theme="dark",
+    return_evidencias=False,
+):
     """Executa a automacao web no fluxo atual baseado em DataPool/planilha."""
     driver = (driver or os.getenv("WEB_AUTOMATION_DRIVER", "playwright")).lower()
 
@@ -29,6 +35,8 @@ def processar_datapool(driver=None, delay_passo=None, callback_log=None, theme="
         kwargs = {"callback_log": callback_log, "theme": theme}
         if delay_passo is not None:
             kwargs["delay_passo"] = delay_passo
+        if return_evidencias:
+            kwargs["return_evidencias"] = True
         return processar_datapool_selenium(**kwargs)
 
     if driver == "playwright":
@@ -37,6 +45,8 @@ def processar_datapool(driver=None, delay_passo=None, callback_log=None, theme="
         kwargs = {"callback_log": callback_log, "theme": theme}
         if delay_passo is not None:
             kwargs["delay_passo"] = delay_passo
+        if return_evidencias:
+            kwargs["return_evidencias"] = True
         return processar_datapool_playwright(**kwargs)
 
     raise ValueError(
