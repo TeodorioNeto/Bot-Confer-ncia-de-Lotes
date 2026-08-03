@@ -3,6 +3,8 @@ src/pages/form_page.py
 Page Object do formulario web de inspecao de lotes.
 """
 
+from src.mapeamento_web import mapear_categoria_produto, preparar_status_inspecao
+
 
 class FormPagePlaywright:
     def __init__(self, page, delay_passo=0):
@@ -11,6 +13,7 @@ class FormPagePlaywright:
 
         self._lote = "#lote"
         self._produto = "#produto"
+        self._codigo_produto = "#codigo_produto"
         self._btn_submit = "button.btn-submit"
         self._alert_success = "#alertSuccess"
 
@@ -33,48 +36,60 @@ class FormPagePlaywright:
         """Preenche o formulario usando os dados do item atual."""
         dados_lote = dados_lote or {}
         valor_lote = str(dados_lote.get("lote") or dados_lote.get("lote_id") or "LOTE-2026-0001")
-        valor_produto = str(dados_lote.get("produto") or "Produto nao informado")
-        valor_status = str(dados_lote.get("status") or "PENDENTE")
+        codigo_produto = str(dados_lote.get("produto") or "").strip()
+        categoria_produto = mapear_categoria_produto(codigo_produto)
+        status = preparar_status_inspecao(dados_lote.get("status"))
 
         self.page.locator(self._lote).fill(valor_lote)
-        self.page.evaluate(
+        self.page.locator(self._codigo_produto).evaluate(
             """
-            (valorProduto) => {
-                const select = document.getElementById('produto');
-                let option = Array.from(select.options).find((item) => item.value === valorProduto);
-                if (!option) {
-                    option = new Option(valorProduto, valorProduto);
-                    select.add(option);
-                }
-                select.value = valorProduto;
-                select.dispatchEvent(new Event('change', { bubbles: true }));
+            (campo, codigo) => {
+                campo.value = codigo;
+                campo.dispatchEvent(new Event('input', { bubbles: true }));
             }
             """,
-            valor_produto,
+            codigo_produto,
         )
+        self.page.locator(self._produto).select_option(categoria_produto)
         self.page.evaluate(
             """
-            (valorStatus) => {
-                let radio = Array.from(
-                    document.querySelectorAll('input[name="status"]')
-                ).find((item) => item.value === valorStatus);
-                if (!radio) {
-                    radio = document.createElement('input');
-                    radio.type = 'radio';
-                    radio.name = 'status';
-                    radio.value = valorStatus;
-                    radio.style.display = 'none';
-                    document.getElementById('formLote').appendChild(radio);
+            (status) => {
+                const form = document.getElementById('formLote');
+                const aviso = document.getElementById('statusAviso');
+                document.querySelectorAll('input[name="status"]').forEach(
+                    (radio) => { radio.checked = false; }
+                );
+
+                form.dataset.statusValido = String(status.valido);
+
+                if (!status.valido) {
+                    aviso.textContent = `Status recebido: ${status.original || '(vazio)'} — revisao humana necessaria (RN06).`;
+                    aviso.hidden = false;
+                    return;
                 }
+
+                const radio = document.querySelector(
+                    `input[name="status"][value="${status.normalizado}"]`
+                );
                 radio.checked = true;
-                radio.dispatchEvent(new Event('change', { bubbles: true }));
+
+                if (status.foi_normalizado) {
+                    aviso.textContent = `RN05: ${status.original} normalizado para ${status.normalizado}.`;
+                    aviso.hidden = false;
+                } else {
+                    aviso.textContent = '';
+                    aviso.hidden = true;
+                }
             }
             """,
-            valor_status,
+            status,
         )
 
     def submeter_e_aguardar(self, timeout=5000):
         """Submete o formulario e aguarda a mensagem de resultado."""
+        if self.page.locator("#formLote").get_attribute("data-status-valido") == "false":
+            return False
+
         self.page.locator(self._btn_submit).click()
         try:
             self.page.locator(self._alert_success).wait_for(state="visible", timeout=timeout)
@@ -121,51 +136,76 @@ class FormPageSelenium:
 
         dados_lote = dados_lote or {}
         valor_lote = str(dados_lote.get("lote") or dados_lote.get("lote_id") or "LOTE-2026-0001")
-        valor_produto = str(dados_lote.get("produto") or "Produto nao informado")
-        valor_status = str(dados_lote.get("status") or "PENDENTE")
+        codigo_produto = str(dados_lote.get("produto") or "").strip()
+        categoria_produto = mapear_categoria_produto(codigo_produto)
+        status = preparar_status_inspecao(dados_lote.get("status"))
 
         campo_lote = self.wait.until(EC.element_to_be_clickable((By.ID, "lote")))
         campo_lote.clear()
         campo_lote.send_keys(valor_lote)
 
-        self.driver.execute_script(
-            """
-            const valorProduto = arguments[0];
-            const select = document.getElementById('produto');
-            let option = Array.from(select.options).find((item) => item.value === valorProduto);
-            if (!option) {
-                option = new Option(valorProduto, valorProduto);
-                select.add(option);
-            }
-            select.value = valorProduto;
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-            """,
-            valor_produto,
+        campo_codigo = self.wait.until(
+            EC.presence_of_element_located((By.ID, "codigo_produto"))
         )
         self.driver.execute_script(
             """
-            const valorStatus = arguments[0];
-            let radio = Array.from(
-                document.querySelectorAll('input[name="status"]')
-            ).find((item) => item.value === valorStatus);
-            if (!radio) {
-                radio = document.createElement('input');
-                radio.type = 'radio';
-                radio.name = 'status';
-                radio.value = valorStatus;
-                radio.style.display = 'none';
-                document.getElementById('formLote').appendChild(radio);
-            }
-            radio.checked = true;
-            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            const campo = arguments[0];
+            const codigo = arguments[1];
+            campo.value = codigo;
+            campo.dispatchEvent(new Event('input', { bubbles: true }));
             """,
-            valor_status,
+            campo_codigo,
+            codigo_produto,
+        )
+
+        from selenium.webdriver.support.ui import Select
+
+        select_produto = self.wait.until(
+            EC.element_to_be_clickable((By.ID, "produto"))
+        )
+        Select(select_produto).select_by_value(categoria_produto)
+
+        self.driver.execute_script(
+            """
+            const status = arguments[0];
+            const form = document.getElementById('formLote');
+            const aviso = document.getElementById('statusAviso');
+            document.querySelectorAll('input[name="status"]').forEach(
+                (radio) => { radio.checked = false; }
+            );
+
+            form.dataset.statusValido = String(status.valido);
+
+            if (!status.valido) {
+                aviso.textContent = `Status recebido: ${status.original || '(vazio)'} — revisao humana necessaria (RN06).`;
+                aviso.hidden = false;
+                return;
+            }
+
+            const radio = document.querySelector(
+                `input[name="status"][value="${status.normalizado}"]`
+            );
+            radio.checked = true;
+
+            if (status.foi_normalizado) {
+                aviso.textContent = `RN05: ${status.original} normalizado para ${status.normalizado}.`;
+                aviso.hidden = false;
+            } else {
+                aviso.textContent = '';
+                aviso.hidden = true;
+            }
+            """,
+            status,
         )
 
     def submeter_e_aguardar(self, timeout=5):
         """Submete o formulario e aguarda a mensagem de resultado."""
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support import expected_conditions as EC
+
+        form = self.driver.find_element(By.ID, "formLote")
+        if form.get_attribute("data-status-valido") == "false":
+            return False
 
         btn = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.btn-submit")))
         btn.click()

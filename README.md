@@ -259,6 +259,8 @@ WEB_AUTOMATION_URL=https://ambiente-homologacao/sistema-lotes
 
 No fluxo com BotCity/DataPool, a automação web só roda quando `WEB_AUTOMATION_ENABLED=true`. Nesse modo, cada item consumido pelo Performer é enviado diretamente ao driver escolhido. O retorno dessa etapa inclui `lote_id`, `driver` e caminho do screenshot; o Performer grava esse caminho no próprio item do DataPool antes de chamar `report_done()` ou `report_error()`.
 
+O formulário web mantém o código original recebido no campo `produto` do DataPool e o apresenta separadamente da categoria visual. Os códigos iniciados por `TV`, `MON` e `AC` são associados, respectivamente, a Televisor, Monitor e Ar-condicionado. Para o status da inspeção, `OK` é normalizado para `APROVADO`, `NOK` para `REPROVADO` e valores não reconhecidos são sinalizados para revisão humana conforme RN06.
+
 Os delays visuais de execução ficam desativados por padrão; a sincronização ocorre por waits/condições dos drivers.
 
 Cada item processado pela automação web gera um screenshot em:

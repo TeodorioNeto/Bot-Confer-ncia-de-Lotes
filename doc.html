@@ -289,6 +289,11 @@
       color: var(--text-secondary);
     }
 
+    .form-input[readonly] {
+      color: var(--text-secondary);
+      cursor: default;
+    }
+
     .form-select option {
       background-color: var(--card-bg);
       color: var(--text-main);
@@ -316,6 +321,17 @@
     .radio-option input[type="radio"] {
       accent-color: var(--lg-red);
       cursor: pointer;
+    }
+
+    #statusAviso {
+      margin: 8px 0 0;
+      padding: 8px 10px;
+      border: 1px solid #f59e0b;
+      border-radius: 6px;
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--text-main);
+      font-size: 0.78rem;
+      line-height: 1.4;
     }
 
     .btn-submit {
@@ -509,12 +525,17 @@
         </div>
 
         <div class="form-group">
-          <label for="produto">Produto *</label>
+          <label for="codigo_produto">Código do Produto*</label>
+          <input type="text" id="codigo_produto" data-testid="input-codigo-produto" class="form-input" readonly required>
+        </div>
+
+        <div class="form-group">
+          <label for="produto">Categoria do Produto *</label>
           <select id="produto" data-testid="select-produto" class="form-select" required>
-            <option value="" disabled selected>Selecione um produto</option>
-            <option value="Placa Mãe V1">Placa Mãe V1</option>
-            <option value="Processador X">Processador X</option>
-            <option value="Memória RAM 16GB">Memória RAM 16GB</option>
+            <option value="" disabled selected>Selecione uma categoria</option>
+            <option value="TV">Televisor</option>
+            <option value="MON">Monitor</option>
+            <option value="AC">Ar-condicionado</option>
           </select>
         </div>
 
@@ -522,15 +543,16 @@
           <label>Status da Inspeção *</label>
           <div class="radio-group" data-testid="radio-group-status">
             <label class="radio-option">
-              <input type="radio" name="status" value="Pendente" data-testid="status-pendente" checked> Pendente
+              <input type="radio" name="status" value="APROVADO" data-testid="status-aprovado" required> Aprovado
             </label>
             <label class="radio-option">
-              <input type="radio" name="status" value="Em Processamento" data-testid="status-processamento"> Em Processamento
+              <input type="radio" name="status" value="REPROVADO" data-testid="status-reprovado"> Reprovado
             </label>
             <label class="radio-option">
-              <input type="radio" name="status" value="Concluído" data-testid="status-concluido"> Concluído
+              <input type="radio" name="status" value="PENDENTE" data-testid="status-pendente"> Pendente
             </label>
           </div>
+          <p id="statusAviso" data-testid="status-aviso" role="status" hidden></p>
         </div>
 
         <button type="submit" id="btnSubmit" data-testid="btn-submit" class="btn-submit">
@@ -654,19 +676,30 @@
       event.preventDefault();
 
       const lote = document.getElementById('lote').value;
-      const produto = document.getElementById('produto').value;
-      const status = document.querySelector('input[name="status"]:checked').value;
+      const codigoProduto = document.getElementById('codigo_produto').value;
+      const produtoSelect = document.getElementById('produto');
+      const produto = produtoSelect.options[produtoSelect.selectedIndex].text;
+      const statusSelecionado = document.querySelector('input[name="status"]:checked');
 
-      alertMessage.innerText = `Lote "${lote}" (${produto}) processado com status: ${status}.`;
+      if (!statusSelecionado) {
+        registrarLog(`Lote "${lote}" requer revisao humana por status invalido.`, 'error');
+        return;
+      }
+
+      const status = statusSelecionado.value;
+
+      alertMessage.innerText = `Lote "${lote}" | Produto ${codigoProduto} (${produto}) | Status: ${status}.`;
       alertBox.style.display = 'flex';
 
-      registrarLog(`Lote "${lote}" gravado com sucesso! Status: ${status}`, 'success');
+      registrarLog(`Lote "${lote}" | Produto ${codigoProduto} | Status ${status}`, 'success');
 
       form.reset();
     });
 
     window.prepararEvidenciaVisual = function() {
-      alertBox.style.display = 'flex';
+      if (form.dataset.statusValido !== 'false') {
+        alertBox.style.display = 'flex';
+      }
     };
   </script>
 
