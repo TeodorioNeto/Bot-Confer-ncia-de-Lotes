@@ -66,6 +66,37 @@ def test_carrega_primeiro_lote_da_planilha_usada_pelo_botcity(tmp_path):
     assert dados["status"] == "APROVADO"
 
 
+def test_carregar_datapool_tratado_usa_cabecalho_real_da_planilha(monkeypatch, tmp_path):
+    caminho = tmp_path / "inspecao_lotes_dia.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Inspecao_14_06_2026"
+    ws.append(["PLANILHA DE INSPECAO"])
+    ws.append(["Arquivo", "Sistema", "Registros"])
+    ws.append(
+        [
+            "lote_id",
+            "produto",
+            "linha",
+            "turno",
+            "status",
+            "responsavel",
+            "data",
+            "observacao",
+        ]
+    )
+    ws.append(["LG-2026-00101", "TV55-4K-B", "L1", "A", "APROVADO", "Ana", "14/06/2026", ""])
+    wb.save(caminho)
+
+    monkeypatch.setattr(src.web_automation_playwright, "ARQUIVO_INSPECAO", caminho)
+
+    lotes = src.web_automation_playwright.carregar_datapool_tratado()
+
+    assert lotes[0]["lote_id"] == "LG-2026-00101"
+    assert lotes[0]["produto"] == "TV55-4K-B"
+    assert lotes[0]["status"] == "APROVADO"
+
+
 def test_carrega_primeiro_resultado_com_ocorrencia_para_formulario_analise(tmp_path):
     caminho = tmp_path / "inspecao_lotes_dia.xlsx"
     wb = openpyxl.Workbook()
@@ -227,6 +258,41 @@ def test_processar_datapool_repassa_retorno_de_evidencias(monkeypatch):
         theme="dark",
         return_evidencias=True,
     )
+
+
+def test_processar_item_web_usa_item_datapool_diretamente(monkeypatch):
+    monkeypatch.setenv("WEB_AUTOMATION_DRIVER", "playwright")
+    item = ItemWebTeste(
+        {
+            "lote_id": "LG-2026-00101",
+            "produto": "TV",
+            "linha": "A",
+            "turno": "MANHA",
+            "status": "APROVADO",
+            "responsavel": "Ana",
+            "data": "14/06/2026",
+            "observacao": "",
+        }
+    )
+    retorno = {
+        "lote_id": "LG-2026-00101",
+        "screenshot": "logs/screenshots/playwright/LG-2026-00101.png",
+        "driver": "playwright",
+    }
+    processar_playwright = Mock(return_value=retorno)
+
+    with patch(
+        "src.web_automation_playwright.processar_item_playwright",
+        processar_playwright,
+    ):
+        resultado = web_automation.processar_item_web(item)
+
+    assert resultado == retorno
+    dados_lote = processar_playwright.call_args.args[0]
+    assert dados_lote["lote_id"] == "LG-2026-00101"
+    assert dados_lote["produto"] == "TV"
+    assert dados_lote["status"] == "APROVADO"
+    assert dados_lote["lote"] == "LG-2026-00101"
 
 
 def test_montar_caminho_screenshot_cria_nome_seguro(monkeypatch, tmp_path):

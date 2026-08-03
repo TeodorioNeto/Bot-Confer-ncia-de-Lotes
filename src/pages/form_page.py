@@ -1,24 +1,18 @@
 """
 src/pages/form_page.py
-Page Object para o formulário de Cadastro de Lotes de Produção (doc.html).
-Aplicações em Playwright e Selenium.
+Page Object do formulario web de inspecao de lotes.
 """
-
-import time
 
 
 class FormPagePlaywright:
-
-    def __init__(self, page, delay_passo=0.3):
+    def __init__(self, page, delay_passo=0):
         self.page = page
         self.delay_passo = delay_passo
 
-        # Locators do formulário doc.html
         self._lote = "#lote"
         self._produto = "#produto"
         self._btn_submit = "button.btn-submit"
         self._alert_success = "#alertSuccess"
-        self._alert_message = "#alertMessage"
 
     def aplicar_tema(self, theme):
         """Aplica o tema visual da tela simulada."""
@@ -35,64 +29,72 @@ class FormPagePlaywright:
         """Limpa o formulario antes de preencher o proximo lote."""
         self.page.evaluate("document.getElementById('formLote').reset()")
 
-    def preencher_lote(self, dados_lote: dict):
-        """Preenche o formulário de forma estática via JS para evitar qualquer rolagem/tremida."""
+    def preencher_lote(self, dados_lote):
+        """Preenche o formulario usando os dados do item atual."""
         dados_lote = dados_lote or {}
-
-        # 1. Lote (Injeção direta via JS no input)
         valor_lote = str(dados_lote.get("lote") or dados_lote.get("lote_id") or "LOTE-2026-0001")
-        self.page.evaluate(f"document.getElementById('lote').value = '{valor_lote}';")
-        if self.delay_passo:
-            time.sleep(self.delay_passo)
+        valor_produto = str(dados_lote.get("produto") or "Produto nao informado")
+        valor_status = str(dados_lote.get("status") or "PENDENTE")
 
-        # 2. Produto (Select via JS)
-        valor_produto = str(dados_lote.get("produto") or "Placa Mãe V1")
-        self.page.evaluate(f"""
-            const select = document.getElementById('produto');
-            select.value = '{valor_produto}';
-            select.dispatchEvent(new Event('change', {{ bubbles: true }}));
-        """)
-        if self.delay_passo:
-            time.sleep(self.delay_passo)
-
-        # 3. Status (Radio Button via JS)
-        valor_status = str(dados_lote.get("status") or "Pendente")
-        self.page.evaluate(f"""
-            const radio = document.querySelector('input[name="status"][value="{valor_status}"]');
-            if (radio) {{
+        self.page.locator(self._lote).fill(valor_lote)
+        self.page.evaluate(
+            """
+            (valorProduto) => {
+                const select = document.getElementById('produto');
+                let option = Array.from(select.options).find((item) => item.value === valorProduto);
+                if (!option) {
+                    option = new Option(valorProduto, valorProduto);
+                    select.add(option);
+                }
+                select.value = valorProduto;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            """,
+            valor_produto,
+        )
+        self.page.evaluate(
+            """
+            (valorStatus) => {
+                let radio = Array.from(
+                    document.querySelectorAll('input[name="status"]')
+                ).find((item) => item.value === valorStatus);
+                if (!radio) {
+                    radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = 'status';
+                    radio.value = valorStatus;
+                    radio.style.display = 'none';
+                    document.getElementById('formLote').appendChild(radio);
+                }
                 radio.checked = true;
-                radio.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            }}
-        """)
-        if self.delay_passo:
-            time.sleep(self.delay_passo)
+                radio.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            """,
+            valor_status,
+        )
 
-    def submeter_e_aguardar(self, timeout=5000) -> bool:
-        """Clica no botão Processar Lote via JS (zero scroll/tremida) e aguarda o sucesso."""
-        # Dispara o clique nativo via JavaScript diretamente no elemento, sem mover a tela
-        self.page.evaluate("document.querySelector('button.btn-submit').click();")
+    def submeter_e_aguardar(self, timeout=5000):
+        """Submete o formulario e aguarda a mensagem de resultado."""
+        self.page.locator(self._btn_submit).click()
         try:
             self.page.locator(self._alert_success).wait_for(state="visible", timeout=timeout)
-            if self.delay_passo:
-                time.sleep(self.delay_passo)
             return True
         except Exception:
             return False
 
-    def is_sucesso(self) -> bool:
+    def is_sucesso(self):
         return self.page.locator(self._alert_success).is_visible()
 
     def preparar_evidencia_visual(self):
         """Prepara a tela para o screenshot de evidencia, se a pagina suportar."""
         self.page.evaluate("window.prepararEvidenciaVisual && window.prepararEvidenciaVisual()")
 
-    def registrar_analises(self, analises: list, dados_lote: dict, linha_planilha=None):
+    def registrar_analises(self, analises, dados_lote, linha_planilha=None):
         pass
 
 
 class FormPageSelenium:
-
-    def __init__(self, driver, wait, delay_passo=0.3):
+    def __init__(self, driver, wait, delay_passo=0):
         self.driver = driver
         self.wait = wait
         self.delay_passo = delay_passo
@@ -112,39 +114,56 @@ class FormPageSelenium:
         """Limpa o formulario antes de preencher o proximo lote."""
         self.driver.execute_script("document.getElementById('formLote').reset();")
 
-    def preencher_lote(self, dados_lote: dict):
-        """Preenche o formulário no Edge utilizando Selenium WebDriver."""
+    def preencher_lote(self, dados_lote):
+        """Preenche o formulario usando os dados do item atual."""
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.support.ui import Select
 
         dados_lote = dados_lote or {}
-
-        # 1. Número do Lote
         valor_lote = str(dados_lote.get("lote") or dados_lote.get("lote_id") or "LOTE-2026-0001")
+        valor_produto = str(dados_lote.get("produto") or "Produto nao informado")
+        valor_status = str(dados_lote.get("status") or "PENDENTE")
+
         campo_lote = self.wait.until(EC.element_to_be_clickable((By.ID, "lote")))
         campo_lote.clear()
         campo_lote.send_keys(valor_lote)
-        if self.delay_passo:
-            time.sleep(self.delay_passo)
 
-        # 2. Produto (Select)
-        valor_produto = str(dados_lote.get("produto") or "Placa Mãe V1")
-        select_prod = Select(self.wait.until(EC.element_to_be_clickable((By.ID, "produto"))))
-        select_prod.select_by_visible_text(valor_produto)
-        if self.delay_passo:
-            time.sleep(self.delay_passo)
+        self.driver.execute_script(
+            """
+            const valorProduto = arguments[0];
+            const select = document.getElementById('produto');
+            let option = Array.from(select.options).find((item) => item.value === valorProduto);
+            if (!option) {
+                option = new Option(valorProduto, valorProduto);
+                select.add(option);
+            }
+            select.value = valorProduto;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            """,
+            valor_produto,
+        )
+        self.driver.execute_script(
+            """
+            const valorStatus = arguments[0];
+            let radio = Array.from(
+                document.querySelectorAll('input[name="status"]')
+            ).find((item) => item.value === valorStatus);
+            if (!radio) {
+                radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = 'status';
+                radio.value = valorStatus;
+                radio.style.display = 'none';
+                document.getElementById('formLote').appendChild(radio);
+            }
+            radio.checked = true;
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            """,
+            valor_status,
+        )
 
-        # 3. Status (Radio Button)
-        valor_status = str(dados_lote.get("status") or "Pendente")
-        radio_xpath = f'//input[@name="status"][@value="{valor_status}"]'
-        radio_elem = self.wait.until(EC.element_to_be_clickable((By.XPATH, radio_xpath)))
-        radio_elem.click()
-        if self.delay_passo:
-            time.sleep(self.delay_passo)
-
-    def submeter_e_aguardar(self, timeout=5) -> bool:
-        """Clica no botão de envio e aguarda a mensagem de sucesso ficar visível."""
+    def submeter_e_aguardar(self, timeout=5):
+        """Submete o formulario e aguarda a mensagem de resultado."""
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support import expected_conditions as EC
 
@@ -153,14 +172,13 @@ class FormPageSelenium:
 
         try:
             self.wait.until(EC.visibility_of_element_located((By.ID, "alertSuccess")))
-            if self.delay_passo:
-                time.sleep(self.delay_passo)
             return True
         except Exception:
             return False
 
-    def is_sucesso(self) -> bool:
+    def is_sucesso(self):
         from selenium.webdriver.common.by import By
+
         elementos = self.driver.find_elements(By.ID, "alertSuccess")
         return len(elementos) > 0 and elementos[0].is_displayed()
 
@@ -168,5 +186,5 @@ class FormPageSelenium:
         """Prepara a tela para o screenshot de evidencia, se a pagina suportar."""
         self.driver.execute_script("window.prepararEvidenciaVisual && window.prepararEvidenciaVisual()")
 
-    def registrar_analises(self, analises: list, dados_lote: dict, linha_planilha=None):
+    def registrar_analises(self, analises, dados_lote, linha_planilha=None):
         pass

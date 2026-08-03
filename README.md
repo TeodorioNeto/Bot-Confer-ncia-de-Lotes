@@ -142,7 +142,7 @@ Crie um DataPool com o nome:
 FilaAuditoriaLotes
 ```
 
-O Dispatcher envia uma linha da planilha por item e inclui o campo `screenshot` para registrar a evidência visual. O Performer marca cada item como concluído ou com erro e continua consumindo a fila mesmo quando um registro apresenta divergência. Quando a automação web está habilitada, o caminho de cada screenshot também é registrado no resumo JSON da execução.
+O Dispatcher envia uma linha da planilha por item e inclui o campo `screenshot` para registrar a evidência visual. O Performer marca cada item como concluído ou com erro e continua consumindo a fila mesmo quando um registro apresenta divergência. Quando a automação web está habilitada, o caminho de cada screenshot também é registrado no item do DataPool e no resumo JSON da execução.
 
 ### Credentials Vault
 
@@ -165,7 +165,7 @@ Somente o usuário pode aparecer nos logs. A senha nunca é registrada.
 Planilha -> Dispatcher -> DataPool -> Performer -> Relatorio e evidencias
 ```
 
-Quando `main.py` esta conectado ao Maestro, ele executa o Dispatcher para publicar a planilha no DataPool, consome os itens disponiveis e consolida as evidencias da execucao. A automacao web atual tambem pode processar a planilha local diretamente pelos drivers Playwright ou Selenium.
+Quando `main.py` esta conectado ao Maestro, ele executa o Dispatcher para publicar a planilha no DataPool, consome os itens disponiveis e aciona a automacao web diretamente para cada item consumido. A automacao web tambem pode processar a planilha local em lote pelos drivers Playwright ou Selenium para demonstracao.
 
 ## Arquitetura da Automação
 
@@ -199,9 +199,10 @@ sequenceDiagram
         DataPool-->>Performer: Dados do lote e regras associadas
 
         alt Web Automation Habilitada (WEB_AUTOMATION_ENABLED=true)
-            Main->>Web: Aciona driver consolidado (Playwright/Selenium)
-            Web->>Web: Simula preenchimento no sistema/HTML
-            Web-->>Main: Gera screenshots das evidencias visuais
+            Performer->>Web: Envia o item atual para o driver (Playwright/Selenium)
+            Web->>Web: Preenche o doc.html com os dados do item
+            Web-->>Performer: Retorna caminho do screenshot
+            Performer->>DataPool: Atualiza item com o caminho da evidencia
         end
 
         Performer->>Logs: Registra logs estruturados e atualiza abas (Formulário/Resumo)
@@ -240,7 +241,7 @@ O projeto mantém duas versões da automação web para registrar lotes e diverg
 - **Playwright:** blindagem avançada de contexto e gerenciamento de estado para garantir estabilidade absoluta nas navegações em lote sem perda de referência de elementos.
 - **Selenium:** ajuste e robustez no método `is_sucesso` para evitar falsos negativos e assegurar a validação correta no fluxo WebDriver.
 
-Os dados preenchidos pela automação web saem da mesma origem usada pelo BotCity: a planilha `dados_entrada/inspecao_lotes_dia.xlsx`. No fluxo corporativo, o Dispatcher lê essa planilha e envia os itens para o DataPool. Quando `WEB_AUTOMATION_ENABLED=true`, o `main.py` também aciona a automação web consolidada para registrar as evidências visuais da inspeção.
+Os dados preenchidos pela automação web saem do item atual do DataPool no fluxo corporativo. O Dispatcher lê a planilha `dados_entrada/inspecao_lotes_dia.xlsx`, envia os itens para o DataPool e, quando `WEB_AUTOMATION_ENABLED=true`, o `main.py` aciona Playwright ou Selenium para preencher o `doc.html` com o item consumido naquele momento.
 
 O arquivo `src/web_automation.py` funciona como ponto de entrada comum. Por padrão, ele executa a versão Playwright:
 
@@ -256,7 +257,9 @@ A URL da tela é configurada por `WEB_AUTOMATION_URL`. Se essa variável ficar v
 WEB_AUTOMATION_URL=https://ambiente-homologacao/sistema-lotes
 ```
 
-No fluxo com BotCity/DataPool, a automação web só roda quando `WEB_AUTOMATION_ENABLED=true`. Na versão atual, ela é acionada como processamento web consolidado pelo driver escolhido, reaproveitando a planilha de entrada e os Page Objects de login/formulário. O retorno dessa etapa inclui o total processado e a lista de evidências com `lote_id`, `driver` e caminho do screenshot.
+No fluxo com BotCity/DataPool, a automação web só roda quando `WEB_AUTOMATION_ENABLED=true`. Nesse modo, cada item consumido pelo Performer é enviado diretamente ao driver escolhido. O retorno dessa etapa inclui `lote_id`, `driver` e caminho do screenshot; o Performer grava esse caminho no próprio item do DataPool antes de chamar `report_done()` ou `report_error()`.
+
+Os delays visuais de execução ficam desativados por padrão; a sincronização ocorre por waits/condições dos drivers.
 
 Cada item processado pela automação web gera um screenshot em:
 
@@ -370,7 +373,7 @@ python -m unittest discover -s tests -p "test*.py"
 Resultado esperado no estado atual:
 
 ```
-48 passed
+55 passed
 ```
 
 ## Pacote para BotCity Maestro

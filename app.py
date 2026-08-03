@@ -44,7 +44,7 @@ def run_playwright():
 
     def worker():
         try:
-            total = processar_datapool_playwright(delay_passo=0.2, callback_log=enviar_log_live, theme=theme)
+            total = processar_datapool_playwright(callback_log=enviar_log_live, theme=theme)
             enviar_log_live(f"Playwright finalizado! Total de lotes: {total}", "success")
         except Exception as e:
             enviar_log_live(f"Falha na execução Playwright: {e}", "error")
@@ -60,7 +60,7 @@ def run_selenium():
 
     def worker():
         try:
-            total = processar_datapool_selenium(delay_passo=0.1, callback_log=enviar_log_live, theme=theme)
+            total = processar_datapool_selenium(callback_log=enviar_log_live, theme=theme)
             enviar_log_live(f"Selenium finalizado! Total de lotes: {total}", "success")
         except Exception as e:
             enviar_log_live(f"Falha na execução Selenium: {e}", "error")

@@ -28,7 +28,10 @@ from bot import processar_item
 from dispatcher import popular_fila
 from src.analise_formulario import analisar_e_preencher_formulario
 from src.base_referencia import carregar_base_referencia
-from src.web_automation import processar_datapool as processar_datapool_web
+from src.web_automation import (
+    processar_datapool as processar_datapool_web,
+    processar_item_web,
+)
 
 logger = setup_logger(__name__)
 
@@ -40,6 +43,7 @@ def main():
     credencial_erp = None
     total = processados = falhados = 0
     resultado_automacao_web = None
+    evidencias_web_por_lote = {}
     try:
         maestro = BotMaestroSDK.from_sys_args()
         task_id = getattr(maestro, "task_id", None)
@@ -77,13 +81,22 @@ def main():
             logger.info("Executando Dispatcher antes do consumo do DataPool.")
             popular_fila(maestro)
 
+        if WEB_AUTOMATION_ENABLED and conectado_maestro:
+            resultado_automacao_web = {
+                "driver": WEB_AUTOMATION_DRIVER,
+                "modo": "item_datapool",
+                "itens_processados": 0,
+                "evidencias": [],
+                "erros": [],
+            }
+
         caminho_planilha_analisada = LOGS_DIR / "inspecao_lotes_dia_analisado.xlsx"
         _, resultados_planilha, resumo_analise = analisar_e_preencher_formulario(
             ARQUIVO_INSPECAO,
             caminho_planilha_analisada,
         )
 
-        if WEB_AUTOMATION_ENABLED:
+        if WEB_AUTOMATION_ENABLED and not conectado_maestro:
             try:
                 logger.info(
                     "Executando automacao web consolidada via %s.",
@@ -95,8 +108,14 @@ def main():
                 )
                 resultado_automacao_web = {
                     "driver": WEB_AUTOMATION_DRIVER,
+                    "modo": "planilha",
                     "itens_processados": resultado_web["total"],
                     "evidencias": resultado_web["evidencias"],
+                }
+                evidencias_web_por_lote = {
+                    str(evidencia.get("lote_id")): evidencia
+                    for evidencia in resultado_web["evidencias"]
+                    if evidencia.get("lote_id")
                 }
             except Exception as erro_web:
                 resultado_automacao_web = {
@@ -117,6 +136,14 @@ def main():
 
                 total += 1
                 resultado = processar_item(item, base_referencia)
+                if WEB_AUTOMATION_ENABLED:
+                    _processar_evidencia_web_do_item(
+                        item,
+                        resultado,
+                        resultado_automacao_web,
+                    )
+                else:
+                    _registrar_evidencia_no_item(item, resultado, evidencias_web_por_lote)
                 resumo_divergencias.append(resultado)
 
                 if resultado["divergencias"]:
@@ -238,6 +265,56 @@ def _publicar_screenshots(maestro, task_id, resultados):
             artifact_name=f"screenshot_lote_{indice}.png",
             filepath=str(arquivo),
         )
+
+
+def _processar_evidencia_web_do_item(item, resultado, resumo_web):
+    try:
+        evidencia = processar_item_web(item, driver=WEB_AUTOMATION_DRIVER)
+    except Exception as erro_web:
+        if resumo_web is not None:
+            resumo_web.setdefault("erros", []).append(
+                {
+                    "lote_id": resultado.get("lote_id"),
+                    "erro": str(erro_web),
+                }
+            )
+        logger.exception(
+            "Falha ao gerar evidencia web do item %s: %s",
+            resultado.get("lote_id"),
+            erro_web,
+        )
+        return
+
+    if not evidencia:
+        return
+
+    _registrar_evidencia_no_item(
+        item,
+        resultado,
+        {str(evidencia.get("lote_id")): evidencia},
+    )
+
+    if resumo_web is not None:
+        resumo_web["itens_processados"] = resumo_web.get("itens_processados", 0) + 1
+        resumo_web.setdefault("evidencias", []).append(evidencia)
+
+
+def _registrar_evidencia_no_item(item, resultado, evidencias_por_lote):
+    lote_id = resultado.get("lote_id")
+    evidencia = evidencias_por_lote.get(str(lote_id)) if lote_id is not None else None
+    if not evidencia:
+        return
+
+    caminho = evidencia.get("screenshot")
+    if not caminho:
+        return
+
+    if hasattr(item, "values") and isinstance(item.values, dict):
+        item.values["screenshot"] = caminho
+    else:
+        item["screenshot"] = caminho
+
+    resultado["screenshot"] = caminho
 
 
 if __name__ == "__main__":

@@ -140,7 +140,7 @@ class ItemTeste:
         return self.valores.get(chave)
 
 
-def criar_item(status, observacao="Inspecao conferida"):
+def criar_item(status, observacao="Inspecao conferida", screenshot=""):
     return ItemTeste(
         {
             "lote_id": "LG-2026-00101",
@@ -151,6 +151,7 @@ def criar_item(status, observacao="Inspecao conferida"):
             "responsavel": "Ana",
             "data": "14/06/2026",
             "observacao": observacao,
+            "screenshot": screenshot,
         }
     )
 
@@ -256,6 +257,13 @@ def test_performer_normaliza_nok_e_exige_observacao(base_exemplo):
     assert any(analise["regra"] == "RN05" for analise in resultado["analises"])
     assert any(analise["regra"] == "RN07" for analise in resultado["analises"])
     assert not any(analise["regra"] == "RN06" for analise in resultado["analises"])
+
+
+def test_performer_preserva_caminho_da_evidencia(base_exemplo):
+    caminho = "logs/screenshots/playwright/LG-2026-00101.png"
+    resultado = processar_item(criar_item("APROVADO", screenshot=caminho), base_exemplo)
+
+    assert resultado["screenshot"] == caminho
 
 
 def test_valida_status_vazio_gera_erro():

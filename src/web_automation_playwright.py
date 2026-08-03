@@ -1,19 +1,20 @@
 """
 src/web_automation_playwright.py
-Orquestrador Playwright com suporte a sincronização de Tema (Dark/Light).
+Orquestrador Playwright para a tela web simulada de inspecao de lotes.
 """
 
 import os
-import time
 from pathlib import Path
 
-import pandas as pd
+import openpyxl
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
+from config import ARQUIVO_INSPECAO
 from src.logger import setup_logger
 from src.pages.form_page import FormPagePlaywright
 from src.pages.login_page import LoginPagePlaywright
+from src.validacao import COLUNAS_ESTRUTURA
 from src.web_evidencias import montar_caminho_screenshot, obter_url_automacao
 
 load_dotenv()
@@ -22,13 +23,11 @@ logger = setup_logger("PlaywrightEngine")
 
 
 def emitir_log(mensagem, tipo="info", callback_log=None):
-    if tipo == "info":
-        logger.info(mensagem)
-    elif tipo == "warn":
+    if tipo == "warn":
         logger.warning(mensagem)
     elif tipo == "error":
         logger.error(mensagem)
-    elif tipo == "success":
+    else:
         logger.info(mensagem)
 
     if callback_log:
@@ -39,35 +38,41 @@ def emitir_log(mensagem, tipo="info", callback_log=None):
 
 
 def carregar_datapool_tratado():
-    caminho_planilha = (
-        Path(__file__).resolve().parent.parent
-        / "dados_entrada"
-        / "inspecao_lotes_dia.xlsx"
-    )
-
-    produtos_validos = ["Placa Mãe V1", "Processador X", "Memória RAM 16GB"]
-    status_validos = ["Pendente", "Em Processamento", "Concluído"]
-
+    caminho_planilha = Path(ARQUIVO_INSPECAO)
     lotes_tratados = []
 
     if caminho_planilha.exists():
         logger.info("Planilha carregada com sucesso: %s", caminho_planilha)
-        df = pd.read_excel(caminho_planilha).fillna("")
+        workbook = openpyxl.load_workbook(caminho_planilha, read_only=True, data_only=True)
+        try:
+            for ws in workbook.worksheets:
+                linha_cabecalho = _encontrar_linha_cabecalho(ws)
+                if linha_cabecalho is None:
+                    continue
 
-        for idx, row in df.iterrows():
-            lote_id = str(row.get("lote_id") or row.get("Lote") or f"LOTE-2026-{idx+1:04d}").strip()
-            prod = produtos_validos[idx % len(produtos_validos)]
-            st = status_validos[idx % len(status_validos)]
+                for linha in ws.iter_rows(
+                    min_row=linha_cabecalho + 1,
+                    max_col=len(COLUNAS_ESTRUTURA),
+                    values_only=True,
+                ):
+                    if linha is None or all(valor is None for valor in linha):
+                        break
 
-            lotes_tratados.append({
-                "lote": lote_id,
-                "lote_id": lote_id,
-                "produto": prod,
-                "status": st,
-            })
+                    preenchidos = sum(
+                        valor is not None and bool(str(valor).strip())
+                        for valor in linha
+                    )
+                    if preenchidos < 4:
+                        continue
+
+                    item = dict(zip(COLUNAS_ESTRUTURA, linha))
+                    item["lote"] = item.get("lote_id")
+                    lotes_tratados.append(item)
+        finally:
+            workbook.close()
     else:
         logger.warning(
-            "ATENÇÃO: Planilha de entrada NÃO encontrada em '%s'. Nenhum lote será processado!",
+            "Planilha de entrada nao encontrada em '%s'. Nenhum lote sera processado.",
             caminho_planilha,
         )
         return []
@@ -75,8 +80,54 @@ def carregar_datapool_tratado():
     return lotes_tratados
 
 
+def _encontrar_linha_cabecalho(ws):
+    for numero_linha in range(1, ws.max_row + 1):
+        valores = [
+            ws.cell(numero_linha, coluna).value
+            for coluna in range(1, len(COLUNAS_ESTRUTURA) + 1)
+        ]
+        if valores == COLUNAS_ESTRUTURA:
+            return numero_linha
+    return None
+
+
+def processar_item_playwright(dados_lote, delay_passo=0, callback_log=None, theme="dark"):
+    """Processa diretamente um item do DataPool na tela web simulada."""
+    resultado = processar_lotes_playwright(
+        [dados_lote],
+        delay_passo=delay_passo,
+        callback_log=callback_log,
+        theme=theme,
+        return_evidencias=True,
+    )
+    return resultado["evidencias"][0] if resultado["evidencias"] else None
+
+
 def processar_datapool_playwright(
-    delay_passo=0.3,
+    delay_passo=0,
+    callback_log=None,
+    theme="dark",
+    return_evidencias=False,
+):
+    """Processa em lote a planilha local, usado por demo e execucao isolada."""
+    lotes = carregar_datapool_tratado()
+
+    if not lotes:
+        emitir_log("DataPool esta vazio ou a planilha nao foi localizada.", "warn", callback_log)
+        return {"total": 0, "evidencias": []} if return_evidencias else 0
+
+    return processar_lotes_playwright(
+        lotes,
+        delay_passo=delay_passo,
+        callback_log=callback_log,
+        theme=theme,
+        return_evidencias=return_evidencias,
+    )
+
+
+def processar_lotes_playwright(
+    lotes,
+    delay_passo=0,
     callback_log=None,
     theme="dark",
     return_evidencias=False,
@@ -84,13 +135,11 @@ def processar_datapool_playwright(
     url = obter_url_automacao()
     headless = os.getenv("PLAYWRIGHT_HEADLESS", "false").lower() == "true"
 
-    lotes = carregar_datapool_tratado()
-
-    if not lotes:
-        emitir_log("DataPool está vazio ou a planilha não foi localizada.", "warn", callback_log)
-        return 0
-
-    emitir_log(f"Iniciando execução Playwright | Total de lotes: {len(lotes)} | Tema: {theme.upper()}", "info", callback_log)
+    emitir_log(
+        f"Iniciando execucao Playwright | Total de lotes: {len(lotes)} | Tema: {theme.upper()}",
+        "info",
+        callback_log,
+    )
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -102,32 +151,32 @@ def processar_datapool_playwright(
         page = context.new_page()
 
         try:
-            emitir_log(f"Acessando a URL do formulário: {url}", "info", callback_log)
+            emitir_log(f"Acessando a URL do formulario: {url}", "info", callback_log)
             page.goto(url)
 
-            # Aplica o tema correto na nova janela do robô
             login_page = LoginPagePlaywright(page, delay_passo=delay_passo)
             form_page = FormPagePlaywright(page, delay_passo=delay_passo)
             form_page.aplicar_tema(theme)
 
-            emitir_log("Realizando autenticação na plataforma...", "info", callback_log)
+            emitir_log("Realizando autenticacao na plataforma...", "info", callback_log)
             login_page.fazer_login()
 
             processados = 0
             evidencias = []
             for idx, item in enumerate(lotes, start=1):
-                msg_lote = f"[{idx:02d}/{len(lotes):02d}] Lote: {item['lote_id']} | Produto: {item['produto']} | Status: {item['status']}"
+                msg_lote = (
+                    f"[{idx:02d}/{len(lotes):02d}] Lote: {item['lote_id']} | "
+                    f"Produto: {item['produto']} | Status: {item['status']}"
+                )
                 emitir_log(msg_lote, "info", callback_log)
 
                 form_page.resetar_formulario()
-
                 form_page.preencher_lote(item)
                 sucesso = form_page.submeter_e_aguardar()
 
                 form_page.preparar_evidencia_visual()
                 caminho_screenshot = montar_caminho_screenshot(item, "playwright")
-                caminho_screenshot.parent.mkdir(parents=True, exist_ok=True)
-                page.screenshot(path=str(caminho_screenshot))
+                page.screenshot(path=str(caminho_screenshot), full_page=True)
                 item["screenshot"] = str(caminho_screenshot)
                 evidencias.append(
                     {
@@ -144,15 +193,18 @@ def processar_datapool_playwright(
 
                 processados += 1
 
-            emitir_log(f"Processamento finalizado com sucesso! Total: {processados} lotes", "success", callback_log)
-            time.sleep(1)
+            emitir_log(
+                f"Processamento finalizado com sucesso! Total: {processados} lotes",
+                "success",
+                callback_log,
+            )
             if return_evidencias:
                 return {"total": processados, "evidencias": evidencias}
             return processados
 
-        except Exception as e:
-            emitir_log(f"Falha crítica no Playwright: {e}", "error", callback_log)
-            raise e
+        except Exception as erro:
+            emitir_log(f"Falha critica no Playwright: {erro}", "error", callback_log)
+            raise
         finally:
             try:
                 browser.close()
@@ -161,4 +213,4 @@ def processar_datapool_playwright(
 
 
 if __name__ == "__main__":
-    processar_datapool_playwright(delay_passo=0.2)
+    processar_datapool_playwright()

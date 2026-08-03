@@ -1,8 +1,13 @@
 import os
+import sys
 from pathlib import Path
 
 import openpyxl
 from dotenv import load_dotenv
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from bot import processar_item
 from config import ARQUIVO_INSPECAO
@@ -16,7 +21,42 @@ load_dotenv()
 
 def montar_dados_lote(item):
     """Converte um item do DataPool para o formato usado pela automacao web."""
-    return {campo: item.get_value(campo) for campo in COLUNAS_ESTRUTURA}
+    dados = {campo: item.get_value(campo) for campo in COLUNAS_ESTRUTURA}
+    dados["lote"] = dados.get("lote_id")
+    return dados
+
+
+def processar_item_web(
+    item,
+    driver=None,
+    delay_passo=None,
+    callback_log=None,
+    theme="dark",
+):
+    """Executa a automacao web usando diretamente o item atual do DataPool."""
+    driver = (driver or os.getenv("WEB_AUTOMATION_DRIVER", "playwright")).lower()
+    dados_lote = montar_dados_lote(item)
+
+    if driver == "selenium":
+        from src.web_automation_selenium import processar_item_selenium
+
+        kwargs = {"callback_log": callback_log, "theme": theme}
+        if delay_passo is not None:
+            kwargs["delay_passo"] = delay_passo
+        return processar_item_selenium(dados_lote, **kwargs)
+
+    if driver == "playwright":
+        from src.web_automation_playwright import processar_item_playwright
+
+        kwargs = {"callback_log": callback_log, "theme": theme}
+        if delay_passo is not None:
+            kwargs["delay_passo"] = delay_passo
+        return processar_item_playwright(dados_lote, **kwargs)
+
+    raise ValueError(
+        "WEB_AUTOMATION_DRIVER deve ser 'playwright' ou 'selenium'. "
+        f"Valor recebido: {driver}"
+    )
 
 
 def processar_datapool(

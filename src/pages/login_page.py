@@ -3,11 +3,8 @@ src/pages/login_page.py
 Page Object para autenticacao na aplicacao (Playwright e Selenium).
 """
 
-import time
-
-
 class LoginPagePlaywright:
-    def __init__(self, page, delay_passo=0.5):
+    def __init__(self, page, delay_passo=0):
         self.page = page
         self.delay_passo = delay_passo
 
@@ -22,20 +19,12 @@ class LoginPagePlaywright:
                 raise ValueError("Credenciais de login devem ser informadas.")
 
             self.page.locator(self._usuario).fill(usuario)
-            if self.delay_passo:
-                time.sleep(self.delay_passo)
-
             self.page.locator(self._senha).fill(senha)
-            if self.delay_passo:
-                time.sleep(self.delay_passo)
-
             self.page.locator(self._btn_login).click()
-            if self.delay_passo:
-                time.sleep(self.delay_passo)
 
 
 class LoginPageSelenium:
-    def __init__(self, driver, wait, delay_passo=0.5):
+    def __init__(self, driver, wait, delay_passo=0):
         self.driver = driver
         self.wait = wait
         self.delay_passo = delay_passo
