@@ -4,7 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     ENVIRONMENT=container \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    TZ=America/Cuiaba
+    TZ=America/Manaus
 
 WORKDIR /app
 
@@ -15,10 +15,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --no-cache-dir -r requirements.txt \
-    && python -m playwright install --with-deps chromium
+    && python -m playwright install-deps chromium \
+    && python -m playwright install chromium
 
 COPY *.py ./
 COPY doc.html logo-lg.png ./
+COPY web/ ./web/
 COPY src/ ./src/
 
 CMD ["python", "main.py"]

@@ -4,6 +4,7 @@ Orquestrador Selenium para a tela web simulada de inspecao de lotes.
 """
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from selenium import webdriver
@@ -51,7 +52,17 @@ def criar_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
 
-    service = EdgeService(EdgeChromiumDriverManager().install())
+    caminho_driver = os.getenv("EDGE_DRIVER_PATH", "").strip()
+    if caminho_driver:
+        caminho_driver = Path(caminho_driver).expanduser()
+        if not caminho_driver.is_file():
+            raise FileNotFoundError(
+                f"EdgeDriver nao encontrado em: {caminho_driver}"
+            )
+        service = EdgeService(str(caminho_driver.resolve()))
+    else:
+        service = EdgeService(EdgeChromiumDriverManager().install())
+
     driver = webdriver.Edge(service=service, options=options)
     driver.maximize_window()
     return driver

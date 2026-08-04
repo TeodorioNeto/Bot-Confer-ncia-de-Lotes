@@ -1,5 +1,7 @@
 # Auditor de Lotes
 
+[![CI](https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes/actions/workflows/ci-cd.yml)
+
 Bot corporativo para conferir lotes de qualidade, identificar divergências na planilha de inspeção e preencher automaticamente as abas de evidência da planilha final. O projeto pode ser executado localmente ou pelo BotCity Maestro, com DataPool, Credentials Vault, logs e evidências da execução.
 
 ## Autoria
@@ -83,6 +85,12 @@ Instale as dependências:
 python -m pip install -r requirements.txt
 ```
 
+Para desenvolvimento e execução dos testes E2E, use o arquivo específico:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+```
+
 Para executar a versão Playwright pela primeira vez, instale também o navegador usado pela biblioteca:
 
 ```powershell
@@ -109,6 +117,7 @@ WEB_AUTOMATION_ENABLED=false
 WEB_AUTOMATION_DRIVER=playwright
 WEB_AUTOMATION_URL=
 PLAYWRIGHT_HEADLESS=false
+EDGE_DRIVER_PATH=C:\msedgedriver.exe
 SCREENSHOTS_DIR=logs/screenshots
 ```
 
@@ -282,6 +291,7 @@ Para executar a versão Selenium:
 ```powershell
 $env:WEB_AUTOMATION_DRIVER='selenium'
 $env:SELENIUM_HEADLESS='true'
+$env:EDGE_DRIVER_PATH='C:\msedgedriver.exe'
 python -m src.web_automation
 ```
 
@@ -344,11 +354,18 @@ docker compose build
 Execute o bot:
 
 ```powershell
+docker compose run --rm bot-conferencia
+```
+
+O nome anterior continua disponível para compatibilidade:
+
+```powershell
 docker compose run --rm auditor-lotes
 ```
 
 - A pasta `dados_entrada/` e montada no container em modo somente leitura.
 - Os logs e relatorios gerados em `/app/logs` sao persistidos na pasta `logs/` da maquina host.
+- A planilha final também é espelhada em `/app/data/output`, persistindo em `data/output/` na máquina host.
 - Os screenshots gerados em `/app/screenshots` sao persistidos na pasta `screenshots/` da maquina host.
 - As pastas `logs/`, `reports/`, `data/output/` e `screenshots/` ficam fora do Git.
 - As variáveis `EXECUTION_ID` e `BOT_ID` identificam cada execução nos logs estruturados em JSON.

@@ -21,7 +21,7 @@ load_dotenv()
 
 def ambiente_container():
     """Indica se a automacao esta rodando dentro de container."""
-    return os.getenv("ENVIRONMENT", "local").lower() == "container"
+    return os.getenv("ENVIRONMENT", "local").lower() != "local"
 
 
 def iniciar_browser(playwright):

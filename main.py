@@ -6,6 +6,7 @@ sem tentar processar nada.
 """
 
 import json
+import shutil
 from datetime import datetime
 from pathlib import Path
 from botcity.maestro import BotMaestroSDK, AutomationTaskFinishStatus, AlertType, ErrorType
@@ -18,6 +19,7 @@ from config import (
     DADOS_ENTRADA_DIR,
     ARQUIVO_INSPECAO,
     DATAPOOL_LABEL,
+    DATA_OUTPUT_DIR,
     LOGS_DIR,
     WEB_AUTOMATION_DRIVER,
     WEB_AUTOMATION_ENABLED,
@@ -94,6 +96,11 @@ def main():
         _, resultados_planilha, resumo_analise = analisar_e_preencher_formulario(
             ARQUIVO_INSPECAO,
             caminho_planilha_analisada,
+        )
+        DATA_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(
+            caminho_planilha_analisada,
+            DATA_OUTPUT_DIR / caminho_planilha_analisada.name,
         )
 
         if WEB_AUTOMATION_ENABLED and not conectado_maestro:

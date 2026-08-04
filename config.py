@@ -26,3 +26,4 @@ ARQUIVO_INSPECAO = BASE_DIR / os.getenv(
     "ARQUIVO_INSPECAO", "dados_entrada/inspecao_lotes_dia.xlsx"
 )
 LOGS_DIR = BASE_DIR / "logs"
+DATA_OUTPUT_DIR = BASE_DIR / os.getenv("DATA_OUTPUT_DIR", "data/output")

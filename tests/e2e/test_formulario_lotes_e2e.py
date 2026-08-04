@@ -1,7 +1,7 @@
-def test_pagina_carrega_com_titulo(page, pagina_lotes_url):
-    page.goto(pagina_lotes_url)
+def test_pagina_carrega_com_titulo(page, pagina_html):
+    page.goto(pagina_html)
 
-    assert "Inspecao" in page.title() or "Inspeção" in page.title()
+    assert "Cadastro de Lotes" in page.title()
 
 
 def test_campo_lote_aceita_preenchimento(formulario_page):

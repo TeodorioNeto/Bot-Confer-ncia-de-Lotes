@@ -204,6 +204,37 @@ def test_processar_datapool_usa_selenium_quando_configurado(monkeypatch):
     processar_selenium.assert_called_once_with(callback_log=None, theme="dark")
 
 
+def test_criar_driver_selenium_usa_executavel_local(monkeypatch, tmp_path):
+    caminho_driver = tmp_path / "msedgedriver.exe"
+    caminho_driver.touch()
+    monkeypatch.setenv("EDGE_DRIVER_PATH", str(caminho_driver))
+    driver = Mock()
+
+    with (
+        patch("src.web_automation_selenium.EdgeService") as service_class,
+        patch("src.web_automation_selenium.webdriver.Edge", return_value=driver),
+        patch(
+            "src.web_automation_selenium.EdgeChromiumDriverManager.install"
+        ) as instalar_automaticamente,
+    ):
+        resultado = src.web_automation_selenium.criar_driver()
+
+    service_class.assert_called_once_with(str(caminho_driver.resolve()))
+    instalar_automaticamente.assert_not_called()
+    driver.maximize_window.assert_called_once_with()
+    assert resultado is driver
+
+
+def test_criar_driver_selenium_falha_se_executavel_local_nao_existe(
+    monkeypatch, tmp_path
+):
+    caminho_driver = tmp_path / "msedgedriver.exe"
+    monkeypatch.setenv("EDGE_DRIVER_PATH", str(caminho_driver))
+
+    with pytest.raises(FileNotFoundError, match="EdgeDriver nao encontrado"):
+        src.web_automation_selenium.criar_driver()
+
+
 def test_processar_datapool_rejeita_driver_desconhecido():
     with pytest.raises(ValueError):
         web_automation.processar_datapool(driver="desconhecido")
