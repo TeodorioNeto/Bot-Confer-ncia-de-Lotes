@@ -19,11 +19,47 @@ from src.web_evidencias import obter_url_automacao
 load_dotenv()
 
 
+def ambiente_container():
+    """Indica se a automacao esta rodando dentro de container."""
+    return os.getenv("ENVIRONMENT", "local").lower() == "container"
+
+
+def iniciar_browser(playwright):
+    """Inicializa Chromium com flags adequadas para execucao local ou container."""
+    em_container = ambiente_container()
+    headless = em_container or os.getenv("PLAYWRIGHT_HEADLESS", "false").lower() == "true"
+    argumentos = []
+
+    if em_container:
+        argumentos.extend(
+            ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        )
+    else:
+        argumentos.append("--start-maximized")
+
+    opcoes = {"headless": headless, "args": argumentos}
+    if not em_container:
+        opcoes["channel"] = os.getenv("PLAYWRIGHT_CHANNEL", "msedge")
+
+    return playwright.chromium.launch(**opcoes)
+
+
 def montar_dados_lote(item):
     """Converte um item do DataPool para o formato usado pela automacao web."""
     dados = {campo: item.get_value(campo) for campo in COLUNAS_ESTRUTURA}
     dados["lote"] = dados.get("lote_id")
+    if hasattr(item, "get_value"):
+        dados["linha_planilha"] = item.get_value("linha_planilha")
     return dados
+
+
+def analisar_dados_lote(dados_lote, base_referencia=None):
+    """Executa bot.py para gerar as mesmas analises usadas na planilha."""
+    base_referencia = base_referencia or carregar_base_referencia(ARQUIVO_INSPECAO)
+    resultado = processar_item(ItemPlanilhaWeb(dados_lote), base_referencia)
+    resultado["linha_planilha"] = dados_lote.get("linha_planilha")
+    resultado["status"] = dados_lote.get("status")
+    return resultado
 
 
 def processar_item_web(

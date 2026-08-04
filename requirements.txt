@@ -1,6 +1,7 @@
 pandas
 openpyxl
 pytest
+pytest-playwright
 botcity-maestro-sdk
 python-dotenv
 python-json-logger>=3.3,<4

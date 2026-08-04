@@ -11,9 +11,12 @@ from selenium.webdriver.edge.service import Service as EdgeService
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
 
+from config import ARQUIVO_INSPECAO
+from src.base_referencia import carregar_base_referencia
 from src.logger import setup_logger
 from src.pages.form_page import FormPageSelenium
 from src.pages.login_page import LoginPageSelenium
+from src.web_automation import analisar_dados_lote
 from src.web_automation_playwright import carregar_datapool_tratado
 from src.web_evidencias import montar_caminho_screenshot, obter_url_automacao
 
@@ -96,6 +99,7 @@ def processar_lotes_selenium(
     return_evidencias=False,
 ):
     url = obter_url_automacao()
+    base_referencia = carregar_base_referencia(ARQUIVO_INSPECAO)
 
     emitir_log_selenium(
         f"Iniciando execucao Selenium | Total de lotes: {len(lotes)} | Tema: {theme.upper()}",
@@ -129,6 +133,12 @@ def processar_lotes_selenium(
             form_page.resetar_formulario()
             form_page.preencher_lote(item)
             sucesso = form_page.submeter_e_aguardar()
+            resultado_item = analisar_dados_lote(item, base_referencia)
+            form_page.registrar_analises(
+                resultado_item["analises"],
+                item,
+                resultado_item.get("linha_planilha"),
+            )
 
             form_page.preparar_evidencia_visual()
             caminho_screenshot = montar_caminho_screenshot(item, "selenium")
@@ -139,6 +149,10 @@ def processar_lotes_selenium(
                     "lote_id": item.get("lote_id"),
                     "screenshot": str(caminho_screenshot),
                     "driver": "selenium",
+                    "linha_planilha": resultado_item.get("linha_planilha"),
+                    "analises": resultado_item["analises"],
+                    "divergencias": resultado_item["divergencias"],
+                    "avisos": resultado_item["avisos"],
                 }
             )
 

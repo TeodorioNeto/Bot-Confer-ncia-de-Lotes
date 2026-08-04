@@ -49,6 +49,7 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 |-- dispatcher.py          # valida a planilha e publica os lotes no DataPool
 |-- main.py                # orquestracao e finalizacao no Maestro
 |-- simulador_inspecao_lotes.html # tela web simulada para Playwright/Selenium
+|-- doc.html               # painel web usado pelos Page Objects e testes E2E
 |-- vault_client.py        # leitura segura da credencial do ERP
 |-- src/
 |   |-- analise_formulario.py
@@ -107,6 +108,8 @@ ARQUIVO_INSPECAO=dados_entrada/inspecao_lotes_dia.xlsx
 WEB_AUTOMATION_ENABLED=false
 WEB_AUTOMATION_DRIVER=playwright
 WEB_AUTOMATION_URL=
+PLAYWRIGHT_HEADLESS=false
+SCREENSHOTS_DIR=logs/screenshots
 ```
 
 Para usar os serviços do Maestro durante uma execução local, informe as credenciais de acesso e altere `MAESTRO_ENABLED` para `true`. A senha do ERP nunca deve ser colocada no código nem no `.env`.
@@ -243,6 +246,8 @@ O projeto mantém duas versões da automação web para registrar lotes e diverg
 
 Os dados preenchidos pela automação web saem do item atual do DataPool no fluxo corporativo. O Dispatcher lê a planilha `dados_entrada/inspecao_lotes_dia.xlsx`, envia os itens para o DataPool e, quando `WEB_AUTOMATION_ENABLED=true`, o `main.py` aciona Playwright ou Selenium para preencher o `doc.html` com o item consumido naquele momento.
 
+A automacao web usa o `bot.py` como fonte unica das regras de negocio. Para cada lote, o driver preenche no `doc.html` as oito colunas da planilha (`lote_id`, `produto`, `linha`, `turno`, `status`, `responsavel`, `data`, `observacao`) e registra os campos da aba `Formulario_Analise`: linha da planilha, lote, regra, problema, acao recomendada e revisao. O screenshot passa a ser uma evidencia visual do dado original e do resultado ja calculado pelo bot.
+
 O arquivo `src/web_automation.py` funciona como ponto de entrada comum. Por padrão, ele executa a versão Playwright:
 
 ```powershell
@@ -328,6 +333,8 @@ Durante a execução, o bot:
 
 ## Execução com Docker
 
+O container roda com `ENVIRONMENT=container`, instala o Chromium do Playwright e aplica as flags `--no-sandbox`, `--disable-dev-shm-usage` e `--disable-gpu` na inicializacao do navegador. Para a demonstracao web, o `docker-compose.yml` habilita Playwright em modo headless por padrao.
+
 Construa a imagem:
 
 ```powershell
@@ -340,8 +347,10 @@ Execute o bot:
 docker compose run --rm auditor-lotes
 ```
 
-- A pasta `dados_entrada/` é montada no container em modo somente leitura.
-- Os logs e relatórios gerados em `/app/logs` são persistidos na pasta `logs/` da máquina host.
+- A pasta `dados_entrada/` e montada no container em modo somente leitura.
+- Os logs e relatorios gerados em `/app/logs` sao persistidos na pasta `logs/` da maquina host.
+- Os screenshots gerados em `/app/screenshots` sao persistidos na pasta `screenshots/` da maquina host.
+- As pastas `logs/`, `reports/`, `data/output/` e `screenshots/` ficam fora do Git.
 - As variáveis `EXECUTION_ID` e `BOT_ID` identificam cada execução nos logs estruturados em JSON.
 
 ## Saídas e evidências
@@ -360,10 +369,17 @@ Quando a execução ocorre pelo Runner, o JSON, a planilha analisada e os screen
 
 ## Testes
 
-Execute a suite principal:
+Execute a suite principal sem os testes E2E:
 
 ```powershell
-python -m pytest -q
+python -m pytest -q tests --ignore=tests/e2e
+```
+
+Execute os testes E2E com Playwright:
+
+```powershell
+python -m playwright install chromium
+python -m pytest tests/e2e -v --browser chromium
 ```
 
 Alternativa com o unittest:
@@ -372,11 +388,7 @@ Alternativa com o unittest:
 python -m unittest discover -s tests -p "test*.py"
 ```
 
-Resultado esperado no estado atual:
-
-```
-55 passed
-```
+No CI, os testes ficam separados em tres etapas: suite principal, `test-e2e` com Playwright real e `build-docker` com smoke test em container.
 
 ## Pacote para BotCity Maestro
 
@@ -391,6 +403,7 @@ vault_client.py
 requirements.txt
 README.md
 simulador_inspecao_lotes.html
+doc.html
 src/
 dados_entrada/inspecao_lotes_dia.xlsx
 ```

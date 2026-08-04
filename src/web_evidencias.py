@@ -1,11 +1,12 @@
 import re
+import os
 from datetime import datetime
 from pathlib import Path
 
 from config import BASE_DIR, LOGS_DIR, WEB_AUTOMATION_URL
 
 
-SCREENSHOTS_DIR = LOGS_DIR / "screenshots"
+SCREENSHOTS_DIR = Path(os.getenv("SCREENSHOTS_DIR", LOGS_DIR / "screenshots"))
 
 
 def montar_caminho_screenshot(dados_lote, driver, screenshot_path=None):

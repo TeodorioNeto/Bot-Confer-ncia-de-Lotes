@@ -11,10 +11,12 @@ from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
 from config import ARQUIVO_INSPECAO
+from src.base_referencia import carregar_base_referencia
 from src.logger import setup_logger
 from src.pages.form_page import FormPagePlaywright
 from src.pages.login_page import LoginPagePlaywright
 from src.validacao import COLUNAS_ESTRUTURA
+from src.web_automation import analisar_dados_lote, iniciar_browser
 from src.web_evidencias import montar_caminho_screenshot, obter_url_automacao
 
 load_dotenv()
@@ -50,10 +52,13 @@ def carregar_datapool_tratado():
                 if linha_cabecalho is None:
                     continue
 
-                for linha in ws.iter_rows(
-                    min_row=linha_cabecalho + 1,
-                    max_col=len(COLUNAS_ESTRUTURA),
-                    values_only=True,
+                for numero_linha, linha in enumerate(
+                    ws.iter_rows(
+                        min_row=linha_cabecalho + 1,
+                        max_col=len(COLUNAS_ESTRUTURA),
+                        values_only=True,
+                    ),
+                    start=linha_cabecalho + 1,
                 ):
                     if linha is None or all(valor is None for valor in linha):
                         break
@@ -67,6 +72,7 @@ def carregar_datapool_tratado():
 
                     item = dict(zip(COLUNAS_ESTRUTURA, linha))
                     item["lote"] = item.get("lote_id")
+                    item["linha_planilha"] = numero_linha
                     lotes_tratados.append(item)
         finally:
             workbook.close()
@@ -134,6 +140,7 @@ def processar_lotes_playwright(
 ):
     url = obter_url_automacao()
     headless = os.getenv("PLAYWRIGHT_HEADLESS", "false").lower() == "true"
+    base_referencia = carregar_base_referencia(ARQUIVO_INSPECAO)
 
     emitir_log(
         f"Iniciando execucao Playwright | Total de lotes: {len(lotes)} | Tema: {theme.upper()}",
@@ -142,12 +149,8 @@ def processar_lotes_playwright(
     )
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=headless,
-            channel="msedge",
-            args=["--start-maximized"],
-        )
-        context = browser.new_context(no_viewport=True)
+        browser = iniciar_browser(p)
+        context = browser.new_context(no_viewport=not headless)
         page = context.new_page()
 
         try:
@@ -173,6 +176,12 @@ def processar_lotes_playwright(
                 form_page.resetar_formulario()
                 form_page.preencher_lote(item)
                 sucesso = form_page.submeter_e_aguardar()
+                resultado_item = analisar_dados_lote(item, base_referencia)
+                form_page.registrar_analises(
+                    resultado_item["analises"],
+                    item,
+                    resultado_item.get("linha_planilha"),
+                )
 
                 form_page.preparar_evidencia_visual()
                 caminho_screenshot = montar_caminho_screenshot(item, "playwright")
@@ -183,6 +192,10 @@ def processar_lotes_playwright(
                         "lote_id": item.get("lote_id"),
                         "screenshot": str(caminho_screenshot),
                         "driver": "playwright",
+                        "linha_planilha": resultado_item.get("linha_planilha"),
+                        "analises": resultado_item["analises"],
+                        "divergencias": resultado_item["divergencias"],
+                        "avisos": resultado_item["avisos"],
                     }
                 )
 
