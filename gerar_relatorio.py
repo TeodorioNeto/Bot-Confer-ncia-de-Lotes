@@ -1,29 +1,10 @@
 """
 gerar_relatorio.py
 
-Escopo deste script: Etapas 5.1 e 5.2 do exercício "Geração de Dashboard com
-Excel e Criação de Relatórios" (Aula 22).
-
-5.1 - Consolidar e validar
-    - Lê as 10 abas diárias (Insp_DD_MM_2026) e a aba Base_Referencia de
-      inspecao_lotes_10dias.xlsx.
-    - Deduplica por Counter, por dia, ANTES de validar (RN11 é por
-      execução/dia — um lote repetido em dois dias diferentes não conta
-      como duplicado).
-    - Chama validar_registro() em cada linha (RN01-RN12) e monta uma lista
-      de objetos RegistroValidado, já com a data de referência do dia.
-    - Usa RegistroValidado.to_dict() para montar os DataFrames do relatório.
-
-5.2 - Gerar o relatório em Excel (6 abas)
-    - Resumo, Todos, Válidos, Divergências, Ambíguos, Erros de Entrada.
-    - Cada aba mostra só os registros da sua categoria (nenhuma mistura).
-    - A aba "Resumo" aqui contém apenas os indicadores numéricos (total,
-      contagem e % por classificação). O dashboard visual (gráfico de
-      rosca + gráfico de evolução por dia, com openpyxl.chart) é a Etapa
-      5.3 do enunciado e NÃO faz parte deste script, por escopo.
-
-Fora do escopo deste script: 5.3 (gráficos nativos) e 5.4 (log de execução
-em arquivo/aba separada).
+Escopo deste script: 
+- Etapas 5.1 e 5.2: Consolidar, validar (RN01-RN12) e gerar as 6 abas do Excel[cite: 1].
+- Etapa 5.3: Montar o dashboard executivo na aba 'Resumo' com gráficos nativos (Rosca e Linha)[cite: 1].
+- Etapa 5.4: Gerar a aba de auditoria 'Log_Execucao'[cite: 1].
 """
 
 from __future__ import annotations
@@ -39,8 +20,9 @@ import openpyxl
 import pandas as pd
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
+from openpyxl.chart import DoughnutChart, LineChart, Reference
 
-ARQUIVO_ENTRADA = "inspecao_lotes_10dias.xlsx"
+ARQUIVO_ENTRADA = "dados_entrada/inspecao_lotes_10dias.xlsx"
 ARQUIVO_SAIDA = "relatorio_conferencia_lotes.xlsx"
 
 COLUNAS_ENTRADA = [
@@ -99,13 +81,7 @@ def normalizar_status(status) -> Optional[str]:
 
 
 def data_valida(data_texto) -> bool:
-    """RN12: data ausente ou fora do formato DD/MM/AAAA é inválida.
-
-    Além do padrão dd/mm/aaaa (dois dígitos / dois dígitos / quatro dígitos),
-    valida se dia e mês existem de fato (ex.: '06/23/2026' bate no padrão
-    posicional mas não é uma data válida em DD/MM/AAAA, pois não existe o
-    mês 23 — deve cair em RN12).
-    """
+    """RN12: data ausente ou fora do formato DD/MM/AAAA é inválida."""
     if vazio(data_texto):
         return False
     texto = str(data_texto).strip()
@@ -119,27 +95,6 @@ def data_valida(data_texto) -> bool:
 
 
 def validar_registro(registro: dict, ocorrencia_no_dia: int, base_referencia: set) -> RegistroValidado:
-    """
-    Aplica as regras RN01-RN12 a uma linha de inspeção e retorna o
-    RegistroValidado já classificado.
-
-    Ordem de avaliação (a primeira regra violada define a classificação):
-      1) RN01-RN04 - campos obrigatórios vazios         -> Erro de Entrada
-      2) RN12      - data ausente/fora do formato        -> Erro de Entrada
-      3) RN11      - duplicidade no mesmo dia (2ª+ vez)  -> Divergência
-      4) RN09      - status não normalizável              -> Ambíguo
-      5) RN05      - lote_id fora da Base_Referencia      -> Divergência
-      6) RN10      - REPROVADO/NOK sem observação         -> Divergência
-      7) RN08      - status padronizado, sem violações    -> Válido
-
-    Args:
-        registro: dict com aba_origem, linha_planilha, data_referencia e as
-                  colunas lote_id/produto/linha/turno/status/responsavel/
-                  data/observacao.
-        ocorrencia_no_dia: nº da ocorrência do lote_id dentro do mesmo dia
-                            (1 = primeira vez, 2+ = duplicado).
-        base_referencia: set de lote_id cadastrados na aba Base_Referencia.
-    """
     produto = registro.get("produto")
     linha = registro.get("linha")
     status_original = registro.get("status")
@@ -244,11 +199,10 @@ def _montar_registro(registro, status_original, status_normalizado, classificaca
 # ---------------------------------------------------------------------------
 
 def carregar_base_referencia(caminho) -> set:
-    """Lê a aba Base_Referencia e retorna o set de lote_id cadastrados (RN05)."""
     wb = openpyxl.load_workbook(caminho, data_only=True)
     ws = wb["Base_Referencia"]
     base = set()
-    for linha in ws.iter_rows(min_row=3, values_only=True):  # pula título e cabeçalho
+    for linha in ws.iter_rows(min_row=3, values_only=True):
         lote_id = linha[0] if linha else None
         if lote_id and str(lote_id).strip().startswith("LG-"):
             base.add(str(lote_id).strip())
@@ -257,22 +211,20 @@ def carregar_base_referencia(caminho) -> set:
 
 
 def nome_aba_para_data(nome_aba: str) -> str:
-    """'Insp_15_06_2026' -> '2026-06-15' (data de referência do dia, para o dashboard)."""
     dia, mes, ano = nome_aba.replace("Insp_", "").split("_")
     return f"{ano}-{mes}-{dia}"
 
 
 def ler_aba_diaria(ws, nome_aba: str) -> list[dict]:
-    """Lê os registros de uma aba diária (cabeçalho na linha 3, dados a partir da linha 4)."""
     data_referencia = nome_aba_para_data(nome_aba)
     registros = []
     for linha_excel, linha in enumerate(ws.iter_rows(min_row=4, values_only=True), start=4):
         valores = dict(zip(COLUNAS_ENTRADA, (linha or ())[: len(COLUNAS_ENTRADA)]))
-        if all(vazio(v) for v in valores.values()):
-            continue  # linha em branco
+        if all(v is None or str(v).strip() == "" for v in valores.values()):
+            continue
         lote_id_bruto = valores.get("lote_id")
         if not vazio(lote_id_bruto) and str(lote_id_bruto).strip().lower().startswith("total"):
-            continue  # linha de rodapé ("Total de registros: 25")
+            continue
         valores["aba_origem"] = nome_aba
         valores["linha_planilha"] = linha_excel
         valores["data_referencia"] = data_referencia
@@ -281,10 +233,6 @@ def ler_aba_diaria(ws, nome_aba: str) -> list[dict]:
 
 
 def consolidar_e_validar(caminho_entrada) -> list[RegistroValidado]:
-    """
-    Etapa 5.1: lê as 10 abas diárias, deduplica por Counter (por dia) e
-    valida cada linha com validar_registro() (RN01-RN12).
-    """
     wb = openpyxl.load_workbook(caminho_entrada, data_only=True)
     base_referencia = carregar_base_referencia(caminho_entrada)
     abas_diarias = [nome for nome in wb.sheetnames if nome != "Base_Referencia"]
@@ -293,12 +241,11 @@ def consolidar_e_validar(caminho_entrada) -> list[RegistroValidado]:
     for nome_aba in abas_diarias:
         registros_do_dia = ler_aba_diaria(wb[nome_aba], nome_aba)
 
-        # RN11: Counter reiniciado a cada dia (deduplicação é por execução/dia)
         contador = Counter()
         for registro in registros_do_dia:
             lote_id = registro.get("lote_id")
             if vazio(lote_id):
-                ocorrencia = 1  # RN01 já classifica como Erro de Entrada
+                ocorrencia = 1
             else:
                 chave = str(lote_id).strip()
                 contador[chave] += 1
@@ -311,7 +258,7 @@ def consolidar_e_validar(caminho_entrada) -> list[RegistroValidado]:
 
 
 # ---------------------------------------------------------------------------
-# Etapa 5.2 - Geração do relatório em Excel (6 abas)
+# Etapas 5.2, 5.3 e 5.4 - Relatório, Dashboard e Log
 # ---------------------------------------------------------------------------
 
 RENOMEAR_COLUNAS = {
@@ -365,7 +312,6 @@ def montar_resumo(df_todos: pd.DataFrame) -> pd.DataFrame:
 
 
 def formatar_aba(ws, cor_cabecalho="1F4E78"):
-    """Formatação simples: cabeçalho em negrito, largura de coluna e congelamento da 1ª linha."""
     for celula in ws[1]:
         celula.font = Font(bold=True, color="FFFFFF")
         celula.fill = PatternFill(start_color=cor_cabecalho, end_color=cor_cabecalho, fill_type="solid")
@@ -379,10 +325,6 @@ def formatar_aba(ws, cor_cabecalho="1F4E78"):
 
 
 def gerar_relatorio_excel(registros: list[RegistroValidado], caminho_saida) -> Path:
-    """
-    Etapa 5.2: gera relatorio_conferencia_lotes.xlsx com as 6 abas exigidas,
-    cada uma contendo apenas os registros da sua categoria.
-    """
     df_todos = montar_dataframe(registros)
     df_validos = df_todos[df_todos["Classificação"] == "Válido"]
     df_divergencias = df_todos[df_todos["Classificação"] == "Divergência"]
@@ -391,6 +333,8 @@ def gerar_relatorio_excel(registros: list[RegistroValidado], caminho_saida) -> P
     df_resumo = montar_resumo(df_todos)
 
     caminho_saida = Path(caminho_saida)
+    
+    # 1. Escrita inicial das abas com pandas[cite: 1]
     with pd.ExcelWriter(caminho_saida, engine="openpyxl") as writer:
         df_resumo.to_excel(writer, sheet_name="Resumo", index=False)
         df_todos.to_excel(writer, sheet_name="Todos", index=False)
@@ -399,9 +343,86 @@ def gerar_relatorio_excel(registros: list[RegistroValidado], caminho_saida) -> P
         df_ambiguos.to_excel(writer, sheet_name="Ambíguos", index=False)
         df_erros.to_excel(writer, sheet_name="Erros de Entrada", index=False)
 
-        for nome_aba in writer.sheets:
-            formatar_aba(writer.sheets[nome_aba])
+    # 2. Pós-processamento com openpyxl (Etapas 3 e 4)[cite: 1]
+    wb = openpyxl.load_workbook(caminho_saida)
+    ws_resumo = wb["Resumo"]
 
+    for nome_aba in wb.sheetnames:
+        formatar_aba(wb[nome_aba])
+
+    # --- ETAPA 5.3: Gráficos Nativos no Dashboard (Aba Resumo)[cite: 1] ---
+    # A) Gráfico de Rosca
+    donut = DoughnutChart()
+    donut.title = "Distribuição de Status dos Lotes"
+    donut.style = 10
+    
+    data_donut = Reference(ws_resumo, min_col=2, min_row=1, max_row=5)
+    labels_donut = Reference(ws_resumo, min_col=1, min_row=2, max_row=5)
+    donut.add_data(data_donut, titles_from_data=True)
+    donut.set_categories(labels_donut)
+    donut.width = 15
+    donut.height = 10
+    
+    ws_resumo.add_chart(donut, "E2")
+
+    # B) Gráfico de Linha (Evolução diária de problemas)
+    df_problemas = df_todos[df_todos["Classificação"].isin(["Divergência", "Ambíguo"])]
+    
+    agrupado = df_problemas.groupby("Data").size()
+    evolucao_diaria = agrupado.reset_index(name="Total_Problemas")
+    evolucao_diaria = evolucao_diaria.sort_values("Data")
+
+    ws_resumo["G1"] = "Data"
+    ws_resumo["H1"] = "Divergências + Ambíguos"
+    
+    for idx, row in enumerate(evolucao_diaria.itertuples(), start=2):
+        ws_resumo.cell(row=idx, column=7, value=str(row.Data))
+        ws_resumo.cell(row=idx, column=8, value=row.Total_Problemas)
+
+    max_row_ev = max(2, len(evolucao_diaria) + 1)
+
+    line = LineChart()
+    line.title = "Evolução Diária de Problemas (Divergências + Ambíguos)"
+    line.style = 13
+    line.y_axis.title = "Quantidade"
+    line.x_axis.title = "Data"
+
+    data_line = Reference(ws_resumo, min_col=8, min_row=1, max_row=max_row_ev)
+    labels_line = Reference(ws_resumo, min_col=7, min_row=2, max_row=max_row_ev)
+    line.add_data(data_line, titles_from_data=True)
+    line.set_categories(labels_line)
+    line.width = 18
+    line.height = 10
+
+    ws_resumo.add_chart(line, "E17")
+
+    # --- ETAPA 5.4: Log de Execução[cite: 1] ---
+    ws_log = wb.create_sheet(title="Log_Execucao")
+    timestamp_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    total_reg = len(df_todos)
+    contagem_cls = df_todos["Classificação"].value_counts()
+
+    dados_log = [
+        ["Parâmetro de Auditoria", "Valor Registrado"],
+        ["Data/Hora da Execução", timestamp_atual],
+        ["Arquivo Analisado", ARQUIVO_ENTRADA],
+        ["Total de Registros Processados", total_reg],
+        ["Total Válidos", int(contagem_cls.get("Válido", 0))],
+        ["Total Divergências", int(contagem_cls.get("Divergência", 0))],
+        ["Total Ambíguos", int(contagem_cls.get("Ambíguo", 0))],
+        ["Total Erros de Entrada", int(contagem_cls.get("Erro de Entrada", 0))],
+        ["Status da Execução", "SUCESSO - Concluído sem exceções"],
+    ]
+
+    for r_idx, linha_log in enumerate(dados_log, start=1):
+        ws_log.cell(row=r_idx, column=1, value=linha_log[0])
+        ws_log.cell(row=r_idx, column=2, value=linha_log[1])
+
+    formatar_aba(ws_log)
+
+    wb.save(caminho_saida)
+    wb.close()
     return caminho_saida
 
 
