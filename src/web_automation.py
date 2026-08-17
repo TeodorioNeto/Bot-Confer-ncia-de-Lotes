@@ -1,8 +1,13 @@
 import os
+import sys
 from pathlib import Path
 
 import openpyxl
 from dotenv import load_dotenv
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from bot import processar_item
 from config import ARQUIVO_INSPECAO
@@ -14,9 +19,80 @@ from src.web_evidencias import obter_url_automacao
 load_dotenv()
 
 
+def ambiente_container():
+    """Indica se a automacao esta rodando dentro de container."""
+    return os.getenv("ENVIRONMENT", "local").lower() != "local"
+
+
+def iniciar_browser(playwright):
+    """Inicializa Chromium com flags adequadas para execucao local ou container."""
+    em_container = ambiente_container()
+    headless = em_container or os.getenv("PLAYWRIGHT_HEADLESS", "false").lower() == "true"
+    argumentos = []
+
+    if em_container:
+        argumentos.extend(
+            ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        )
+    else:
+        argumentos.append("--start-maximized")
+
+    opcoes = {"headless": headless, "args": argumentos}
+    if not em_container:
+        opcoes["channel"] = os.getenv("PLAYWRIGHT_CHANNEL", "msedge")
+
+    return playwright.chromium.launch(**opcoes)
+
+
 def montar_dados_lote(item):
     """Converte um item do DataPool para o formato usado pela automacao web."""
-    return {campo: item.get_value(campo) for campo in COLUNAS_ESTRUTURA}
+    dados = {campo: item.get_value(campo) for campo in COLUNAS_ESTRUTURA}
+    dados["lote"] = dados.get("lote_id")
+    if hasattr(item, "get_value"):
+        dados["linha_planilha"] = item.get_value("linha_planilha")
+    return dados
+
+
+def analisar_dados_lote(dados_lote, base_referencia=None):
+    """Executa bot.py para gerar as mesmas analises usadas na planilha."""
+    base_referencia = base_referencia or carregar_base_referencia(ARQUIVO_INSPECAO)
+    resultado = processar_item(ItemPlanilhaWeb(dados_lote), base_referencia)
+    resultado["linha_planilha"] = dados_lote.get("linha_planilha")
+    resultado["status"] = dados_lote.get("status")
+    return resultado
+
+
+def processar_item_web(
+    item,
+    driver=None,
+    delay_passo=None,
+    callback_log=None,
+    theme="dark",
+):
+    """Executa a automacao web usando diretamente o item atual do DataPool."""
+    driver = (driver or os.getenv("WEB_AUTOMATION_DRIVER", "playwright")).lower()
+    dados_lote = montar_dados_lote(item)
+
+    if driver == "selenium":
+        from src.web_automation_selenium import processar_item_selenium
+
+        kwargs = {"callback_log": callback_log, "theme": theme}
+        if delay_passo is not None:
+            kwargs["delay_passo"] = delay_passo
+        return processar_item_selenium(dados_lote, **kwargs)
+
+    if driver == "playwright":
+        from src.web_automation_playwright import processar_item_playwright
+
+        kwargs = {"callback_log": callback_log, "theme": theme}
+        if delay_passo is not None:
+            kwargs["delay_passo"] = delay_passo
+        return processar_item_playwright(dados_lote, **kwargs)
+
+    raise ValueError(
+        "WEB_AUTOMATION_DRIVER deve ser 'playwright' ou 'selenium'. "
+        f"Valor recebido: {driver}"
+    )
 
 
 def processar_datapool(
