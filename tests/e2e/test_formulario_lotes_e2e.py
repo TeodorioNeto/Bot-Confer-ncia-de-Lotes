@@ -1,3 +1,9 @@
+import pytest
+
+
+pytestmark = pytest.mark.e2e
+
+
 def test_pagina_carrega_com_titulo(page, pagina_html):
     page.goto(pagina_html)
 

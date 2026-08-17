@@ -31,8 +31,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
 
-      - name: Executar testes
-        run: python -m pytest -q tests --ignore=tests/e2e
+      - name: Executar testes com cobertura
+        run: python -m pytest --cov=src --cov=gerar_relatorio --cov-report=term-missing --cov-fail-under=80 tests --ignore=tests/e2e
 
   test-e2e:
     name: Testes E2E

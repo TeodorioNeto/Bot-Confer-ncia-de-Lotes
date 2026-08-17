@@ -64,6 +64,11 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 |   |-- web_automation_playwright.py
 |   `-- web_automation_selenium.py
 |-- tests/
+|   |-- conftest.py
+|   |-- unit/
+|   |-- integration/
+|   |-- e2e/
+|   |-- fixtures/
 |   |-- test_analise_formulario.py
 |   |-- test_dispatcher.py
 |   |-- test_validacao.py
@@ -386,26 +391,49 @@ Quando a execução ocorre pelo Runner, o JSON, a planilha analisada e os screen
 
 ## Testes
 
-Execute a suite principal sem os testes E2E:
+Instale as dependencias de desenvolvimento antes de rodar a suite completa:
 
 ```powershell
-python -m pytest -q tests --ignore=tests/e2e
+python -m pip install -r requirements-dev.txt
 ```
 
-Execute os testes E2E com Playwright:
+Execute todos os testes:
+
+```powershell
+python -m pytest -q
+```
+
+A atividade da Aula 23 organiza os testes por marcadores declarados em `pytest.ini`:
+
+```powershell
+python -m pytest -m unit
+python -m pytest -m integration
+python -m pytest -m regression
+python -m pytest -m e2e
+```
+
+Os testes E2E com navegador usam Playwright. Na primeira execucao local, instale o Chromium:
 
 ```powershell
 python -m playwright install chromium
 python -m pytest tests/e2e -v --browser chromium
 ```
 
-Alternativa com o unittest:
+A cobertura minima exigida para a Aula 23 e de 80%:
+
+```powershell
+python -m pytest --cov=src --cov=gerar_relatorio --cov-report=term-missing --cov-fail-under=80
+```
+
+O arquivo `.coveragerc` exclui os adaptadores de navegador e Page Objects da cobertura principal, porque eles sao exercitados na suite E2E com Playwright. A cobertura da Aula 23 fica concentrada nas regras de negocio, leitura/consolidacao, relatorios e integracoes sem sistemas reais.
+
+Tambem ha compatibilidade com `unittest` para as classes que usam `TestCase`, `setUp()` e `subTest()`:
 
 ```powershell
 python -m unittest discover -s tests -p "test*.py"
 ```
 
-No CI, os testes ficam separados em tres etapas: suite principal, `test-e2e` com Playwright real e `build-docker` com smoke test em container.
+Os testes da Aula 23 usam `tmp_path` para gerar planilhas temporarias, `MagicMock`/`monkeypatch` para simular a `Base_Referencia` e nao dependem de planilhas privadas, internet ou credenciais reais. No CI, os testes ficam separados em tres etapas: suite principal, `test-e2e` com Playwright real e `build-docker` com smoke test em container.
 
 ## Pacote para BotCity Maestro
 

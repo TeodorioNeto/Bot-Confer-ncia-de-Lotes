@@ -3,3 +3,4 @@
 # Dependencias usadas pela revisao e pelos testes E2E do formulario.
 pytest
 pytest-playwright
+pytest-cov
