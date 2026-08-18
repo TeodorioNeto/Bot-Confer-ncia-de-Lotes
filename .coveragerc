@@ -1,0 +1,9 @@
+[run]
+omit =
+    src/pages/*
+    src/web_automation_playwright.py
+    src/web_automation_selenium.py
+
+[report]
+show_missing = true
+skip_empty = true

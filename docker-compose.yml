@@ -1,22 +1,32 @@
+x-bot-conferencia: &bot-conferencia
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: auditor-lotes:local
+  environment:
+    EXECUTION_ID: ${EXECUTION_ID:-docker-local}
+    BOT_ID: ${BOT_ID:-auditor-lotes}
+    ENVIRONMENT: container
+    MAESTRO_ENABLED: "false"
+    VAULT_ENABLED: "false"
+    WEB_AUTOMATION_ENABLED: ${WEB_AUTOMATION_ENABLED:-true}
+    WEB_AUTOMATION_DRIVER: ${WEB_AUTOMATION_DRIVER:-playwright}
+    PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
+    SCREENSHOTS_DIR: /app/screenshots
+    DATA_OUTPUT_DIR: /app/data/output
+    ARQUIVO_INSPECAO: ${ARQUIVO_INSPECAO:-dados_entrada/inspecao_lotes_dia.xlsx}
+  volumes:
+    - ./dados_entrada:/app/dados_entrada:ro
+    - ./logs:/app/logs
+    - ./data/output:/app/data/output
+    - ./reports:/app/reports
+    - ./screenshots:/app/screenshots
+  command: ["python", "main.py"]
+
 services:
   auditor-lotes:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *bot-conferencia
 
-    image: auditor-lotes:local
-
-    env_file:
-      - .env
-
-    environment:
-      EXECUTION_ID: ${EXECUTION_ID:-docker-local}
-      BOT_ID: ${BOT_ID:-auditor-lotes}
-      MAESTRO_ENABLED: ${MAESTRO_ENABLED:-false}
-      VAULT_ENABLED: ${VAULT_ENABLED:-false}
-
-    volumes:
-      - ./dados_entrada:/app/dados_entrada:ro
-      - ./logs:/app/logs
-
-    command: ["python", "main.py"]
+  bot-conferencia:
+    <<: *bot-conferencia
+    profiles: ["formulario"]

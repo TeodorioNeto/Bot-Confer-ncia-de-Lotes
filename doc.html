@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LG Electronics - Painel de Inspeção e Conferência de Lotes</title>
+  <title>Cadastro de Lotes - Painel de Inspecao LG Electronics</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
@@ -66,15 +66,26 @@
 
     .main-wrapper {
       width: 100%;
-      max-width: 1050px;
+      max-width: 1560px;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(360px, 0.95fr) minmax(340px, 0.85fr) minmax(440px, 1.1fr);
       gap: 20px;
+      align-items: stretch;
     }
 
-    @media (max-width: 860px) {
+    .evidence-grid {
+      display: contents;
+    }
+
+    @media (max-width: 1180px) {
       .main-wrapper {
         grid-template-columns: 1fr;
+      }
+
+      .evidence-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
       }
     }
 
@@ -289,6 +300,11 @@
       color: var(--text-secondary);
     }
 
+    .form-input[readonly] {
+      color: var(--text-secondary);
+      cursor: default;
+    }
+
     .form-select option {
       background-color: var(--card-bg);
       color: var(--text-main);
@@ -316,6 +332,17 @@
     .radio-option input[type="radio"] {
       accent-color: var(--lg-red);
       cursor: pointer;
+    }
+
+    #statusAviso {
+      margin: 8px 0 0;
+      padding: 8px 10px;
+      border: 1px solid #f59e0b;
+      border-radius: 6px;
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--text-main);
+      font-size: 0.78rem;
+      line-height: 1.4;
     }
 
     .btn-submit {
@@ -382,7 +409,7 @@
       border: 1px solid var(--terminal-border);
       display: flex;
       flex-direction: column;
-      height: 100%;
+      min-height: 420px;
       overflow: hidden;
       box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.4);
     }
@@ -435,6 +462,72 @@
     .log-line {
       margin-bottom: 6px;
       word-break: break-all;
+    }
+
+    .analysis-panel {
+      margin-top: 0;
+      border: 1px solid var(--border-card);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--card-bg);
+      min-height: 420px;
+    }
+
+    .analysis-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .analysis-header h3 {
+      margin: 0 0 4px;
+      font-size: 1rem;
+      color: var(--text-main);
+    }
+
+    .analysis-header p {
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    .analysis-table {
+      width: 100%;
+      min-width: 720px;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+
+    .analysis-panel {
+      overflow-x: auto;
+    }
+
+    .analysis-table th,
+    .analysis-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .analysis-table th {
+      background: rgba(56, 189, 248, 0.08);
+      color: var(--text-main);
+      font-weight: 700;
+    }
+
+    .analysis-table td {
+      color: var(--text-secondary);
+      word-break: break-word;
+    }
+
+    .analysis-empty {
+      color: #16a34a;
+      font-weight: 700;
+    }
+
+    .analysis-divergencia {
+      color: #ef4444;
+      font-weight: 700;
     }
 
     .log-time { color: #6272a4; }
@@ -509,28 +602,59 @@
         </div>
 
         <div class="form-group">
-          <label for="produto">Produto *</label>
+          <label for="codigo_produto">Código do Produto*</label>
+          <input type="text" id="codigo_produto" data-testid="input-codigo-produto" class="form-input" required>
+        </div>
+
+        <div class="form-group">
+          <label for="produto">Categoria do Produto *</label>
           <select id="produto" data-testid="select-produto" class="form-select" required>
-            <option value="" disabled selected>Selecione um produto</option>
-            <option value="Placa Mãe V1">Placa Mãe V1</option>
-            <option value="Processador X">Processador X</option>
-            <option value="Memória RAM 16GB">Memória RAM 16GB</option>
+            <option value="" disabled selected>Selecione uma categoria</option>
+            <option value="TV">Televisor</option>
+            <option value="MON">Monitor</option>
+            <option value="AC">Ar-condicionado</option>
           </select>
+        </div>
+
+        <div class="form-group">
+          <label for="linha_producao">Linha *</label>
+          <input type="text" id="linha_producao" data-testid="input-linha" class="form-input" >
+        </div>
+
+        <div class="form-group">
+          <label for="turno">Turno *</label>
+          <input type="text" id="turno" data-testid="input-turno" class="form-input" >
+        </div>
+
+        <div class="form-group">
+          <label for="responsavel">Responsável *</label>
+          <input type="text" id="responsavel" data-testid="input-responsavel" class="form-input" >
+        </div>
+
+        <div class="form-group">
+          <label for="data_inspecao">Data *</label>
+          <input type="text" id="data_inspecao" data-testid="input-data" class="form-input" >
+        </div>
+
+        <div class="form-group">
+          <label for="observacao">Observação</label>
+          <textarea id="observacao" data-testid="input-observacao" class="form-input" rows="3"></textarea>
         </div>
 
         <div class="form-group">
           <label>Status da Inspeção *</label>
           <div class="radio-group" data-testid="radio-group-status">
             <label class="radio-option">
-              <input type="radio" name="status" value="Pendente" data-testid="status-pendente" checked> Pendente
+              <input type="radio" name="status" value="APROVADO" data-testid="status-aprovado" required> Aprovado
             </label>
             <label class="radio-option">
-              <input type="radio" name="status" value="Em Processamento" data-testid="status-processamento"> Em Processamento
+              <input type="radio" name="status" value="REPROVADO" data-testid="status-reprovado"> Reprovado
             </label>
             <label class="radio-option">
-              <input type="radio" name="status" value="Concluído" data-testid="status-concluido"> Concluído
+              <input type="radio" name="status" value="PENDENTE" data-testid="status-pendente" checked> Pendente
             </label>
           </div>
+          <p id="statusAviso" data-testid="status-aviso" role="status" hidden></p>
         </div>
 
         <button type="submit" id="btnSubmit" data-testid="btn-submit" class="btn-submit">
@@ -547,8 +671,10 @@
           <p id="alertMessage" data-testid="alert-message">Lote processado com sucesso.</p>
         </div>
       </div>
+
     </div>
 
+    <div class="evidence-grid">
     <!-- Mini Terminal de Logs -->
     <div class="terminal-container">
       <div class="terminal-header">
@@ -571,6 +697,30 @@
           <span class="log-time">[SYSTEM]</span> Console pronto para monitoramento.
         </div>
       </div>
+    </div>
+      <section class="analysis-panel" data-testid="formulario-analise">
+        <div class="analysis-header">
+          <h3>Análise da planilha do dia</h3>
+          <p>Ocorrencias geradas pelas mesmas regras de negocio.</p>
+        </div>
+        <table class="analysis-table">
+          <thead>
+            <tr>
+              <th>Linha</th>
+              <th>Lote ID</th>
+              <th>Regra</th>
+              <th>Problema</th>
+              <th>Ação recomendada</th>
+              <th>Revisão</th>
+            </tr>
+          </thead>
+          <tbody id="analysisBody" data-testid="analysis-body">
+            <tr>
+              <td colspan="6" class="analysis-empty">Nenhuma ocorrencia registrada.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
     </div>
   </div>
 
@@ -618,6 +768,36 @@
       registrarLog(mensagem, tipo);
     };
 
+    window.registrarAnalisesFormulario = function(payload) {
+      const corpo = document.getElementById('analysisBody');
+      const analises = Array.isArray(payload.analises) ? payload.analises : [];
+
+      if (analises.length === 0) {
+        return;
+      }
+
+      corpo.querySelectorAll('.analysis-empty').forEach((linha) => linha.closest('tr').remove());
+
+      analises.forEach((analise) => {
+        const linha = document.createElement('tr');
+        const revisao = analise.categoria === 'aviso' ? 'Sim (aviso)' : 'Sim (divergencia)';
+        [
+          payload.linha_planilha || '',
+          payload.lote_id || '(vazio)',
+          analise.regra || '',
+          analise.problema || '',
+          analise.acao || '',
+          revisao,
+        ].forEach((valor, indice) => {
+          const celula = document.createElement('td');
+          celula.textContent = valor;
+          if (indice === 3) celula.className = 'analysis-divergencia';
+          linha.appendChild(celula);
+        });
+        corpo.appendChild(linha);
+      });
+    };
+
     // Conexão SSE para transmissão de logs ao vivo
     let eventSource = new EventSource('http://127.0.0.1:5000/stream-logs');
     eventSource.onmessage = function(e) {
@@ -654,19 +834,32 @@
       event.preventDefault();
 
       const lote = document.getElementById('lote').value;
-      const produto = document.getElementById('produto').value;
-      const status = document.querySelector('input[name="status"]:checked').value;
+      const codigoProduto = document.getElementById('codigo_produto').value;
+      const linhaProducao = document.getElementById('linha_producao').value;
+      const turno = document.getElementById('turno').value;
+      const responsavel = document.getElementById('responsavel').value;
+      const dataInspecao = document.getElementById('data_inspecao').value;
+      const produtoSelect = document.getElementById('produto');
+      const produto = produtoSelect.options[produtoSelect.selectedIndex].text;
+      const statusSelecionado = document.querySelector('input[name="status"]:checked');
 
-      alertMessage.innerText = `Lote "${lote}" (${produto}) processado com status: ${status}.`;
+      if (!statusSelecionado) {
+        registrarLog(`Lote "${lote}" requer revisao humana por status invalido.`, 'error');
+        return;
+      }
+
+      const status = statusSelecionado.value;
+
+      alertMessage.innerText = `Lote "${lote}" | Produto ${codigoProduto} (${produto}) | Linha ${linhaProducao} | Turno ${turno} | Responsável ${responsavel} | Data ${dataInspecao} | Status: ${status}.`;
       alertBox.style.display = 'flex';
 
-      registrarLog(`Lote "${lote}" gravado com sucesso! Status: ${status}`, 'success');
-
-      form.reset();
+      registrarLog(`Lote "${lote}" | Produto ${codigoProduto} | Linha ${linhaProducao} | Turno ${turno} | Status ${status}`, 'success');
     });
 
     window.prepararEvidenciaVisual = function() {
-      alertBox.style.display = 'flex';
+      if (form.dataset.statusValido !== 'false') {
+        alertBox.style.display = 'flex';
+      }
     };
   </script>
 

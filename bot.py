@@ -121,6 +121,7 @@ def processar_item(item, base_referencia):
 
     return {
         "lote_id": lote_id,
+        "screenshot": item.get_value("screenshot"),
         "divergencias": divergencias,
         "avisos": avisos,
         "analises": analises,
