@@ -32,7 +32,17 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Executar testes com cobertura
-        run: python -m pytest --cov=src --cov=gerar_relatorio --cov=operational_indicators --cov-report=term-missing --cov-fail-under=80 tests --ignore=tests/e2e
+        run: |
+          mkdir -p reports
+          python -m pytest --cov=src --cov=gerar_relatorio --cov=operational_indicators --cov-report=term-missing --cov-report=xml:reports/coverage.xml --cov-fail-under=80 tests --ignore=tests/e2e
+
+      - name: Publicar relatorio de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: reports/coverage.xml
+          if-no-files-found: error
 
   test-e2e:
     name: Testes E2E

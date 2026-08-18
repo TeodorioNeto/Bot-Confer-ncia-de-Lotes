@@ -411,7 +411,7 @@ Entradas e saídas padrão:
 
 | Artefato | Caminho padrão | Observação |
 | --- | --- | --- |
-| Entrada | `dados_entrada/inspecao_lotes_10dias.xlsx` | Planilha didática com 10 dias de inspeção |
+| Entrada | `dados_entrada/inspecao_lotes_10dias.xlsx` | Caminho preferencial; se não existir, o bot procura `inspecao_lotes_10dias.xlsx` na raiz para compatibilidade |
 | Excel executivo | `relatorio_conferencia_lotes.xlsx` | Saída gerada localmente, fora do Git por regra de `.gitignore` |
 | Resumo executivo | `resumo_executivo.md` | Saída de negócio gerada a partir dos mesmos indicadores do Excel |
 
@@ -469,8 +469,11 @@ python -m pytest --cov=src --cov=gerar_relatorio --cov=operational_indicators --
 Para gerar uma evidencia anexavel de cobertura:
 
 ```powershell
+New-Item -ItemType Directory -Force reports | Out-Null
 python -m pytest --cov=src --cov=gerar_relatorio --cov=operational_indicators --cov-report=term-missing --cov-report=xml:reports/coverage.xml --cov-fail-under=80
 ```
+
+No GitHub Actions, o mesmo relatório é publicado como artefato `coverage-report` da execução do CI.
 
 O arquivo `.coveragerc` exclui os adaptadores de navegador e Page Objects da cobertura principal, porque eles sao exercitados na suite E2E com Playwright. A cobertura principal fica concentrada nas regras de negocio, leitura/consolidacao, indicadores, relatorios e integracoes sem sistemas reais.
 

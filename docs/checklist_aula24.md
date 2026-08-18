@@ -30,8 +30,8 @@
 
 - [X] `resumo_executivo.md` gerado a partir do mesmo objeto de indicadores.
 - [X] Testes novos marcados com `unit` e `integration`.
-- [X] Cobertura acima de 80% validada por `pytest-cov`.
-- [X] Evidencia anexavel de cobertura gerada em `reports/coverage.xml`.
+- [X] CI valida cobertura minima de 80% com `pytest-cov`.
+- [X] CI gera `reports/coverage.xml` e publica o artefato `coverage-report`.
 
 ## F. Documentacao
 

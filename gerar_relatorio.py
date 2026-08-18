@@ -1,9 +1,9 @@
 """
 gerar_relatorio.py
 
-Escopo deste script: 
-- Etapas 5.1 e 5.2: Consolidar, validar (RN01-RN12) e gerar as 6 abas do Excel[cite: 1].
-- Etapa 5.3: Montar o dashboard executivo na aba 'Resumo' com gráficos nativos (Rosca e Linha)[cite: 1].
+Escopo deste script:
+- Etapas 5.1 e 5.2: consolidar, validar (RN01-RN12) e gerar as 8 abas do Excel.
+- Etapa 5.3: montar o dashboard executivo na aba 'Resumo' com gráficos nativos.
 - Etapa 5.4: Gerar saidas executivas sem misturar logs ao Excel.
 """
 
@@ -28,6 +28,7 @@ from operational_indicators import (
 )
 
 ARQUIVO_ENTRADA = "dados_entrada/inspecao_lotes_10dias.xlsx"
+ARQUIVO_ENTRADA_LEGADO = "inspecao_lotes_10dias.xlsx"
 ARQUIVO_SAIDA = "relatorio_conferencia_lotes.xlsx"
 ARQUIVO_RESUMO_EXECUTIVO = "resumo_executivo.md"
 
@@ -238,7 +239,26 @@ def ler_aba_diaria(ws, nome_aba: str) -> list[dict]:
     return registros
 
 
+def resolver_caminho_entrada(caminho_entrada) -> Path:
+    """Resolve a entrada padrão e mantém compatibilidade com o layout legado."""
+    caminho = Path(caminho_entrada)
+    if caminho.is_file():
+        return caminho
+
+    caminho_padrao = Path(ARQUIVO_ENTRADA)
+    caminho_legado = Path(ARQUIVO_ENTRADA_LEGADO)
+    if caminho == caminho_padrao and caminho_legado.is_file():
+        return caminho_legado
+
+    tentativas = [caminho]
+    if caminho == caminho_padrao:
+        tentativas.append(caminho_legado)
+    caminhos = ", ".join(str(item) for item in tentativas)
+    raise FileNotFoundError(f"Arquivo de entrada não encontrado. Caminhos verificados: {caminhos}")
+
+
 def consolidar_e_validar(caminho_entrada) -> list[RegistroValidado]:
+    caminho_entrada = resolver_caminho_entrada(caminho_entrada)
     wb = openpyxl.load_workbook(caminho_entrada, data_only=True)
     base_referencia = carregar_base_referencia(caminho_entrada)
     abas_diarias = [nome for nome in wb.sheetnames if nome != "Base_Referencia"]

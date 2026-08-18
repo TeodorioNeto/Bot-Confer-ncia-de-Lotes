@@ -1,10 +1,14 @@
+from pathlib import Path
+
 import openpyxl
 import pytest
 
 from gerar_relatorio import (
+    ARQUIVO_ENTRADA,
     RegistroValidado,
     gerar_relatorio_excel,
     gerar_resumo_executivo,
+    resolver_caminho_entrada,
 )
 from operational_indicators import consolidar_indicadores
 
@@ -73,3 +77,12 @@ def test_relatorio_consolidado_cria_8_abas_essenciais_e_resumo_sincronizado(tmp_
     assert f"Foram processados {indicadores.total_registros} registros" in resumo
     assert "RN05" in resumo
     assert f"{indicadores.ganho_estimado_minutos:.0f} minutos" in resumo
+
+
+@pytest.mark.integration
+def test_resolver_entrada_padrao_aceita_arquivo_legado_na_raiz(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    caminho_legado = tmp_path / "inspecao_lotes_10dias.xlsx"
+    caminho_legado.touch()
+
+    assert resolver_caminho_entrada(ARQUIVO_ENTRADA) == Path(caminho_legado.name)
