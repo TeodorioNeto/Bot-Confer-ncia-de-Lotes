@@ -4,7 +4,7 @@ gerar_relatorio.py
 Escopo deste script: 
 - Etapas 5.1 e 5.2: Consolidar, validar (RN01-RN12) e gerar as 6 abas do Excel[cite: 1].
 - Etapa 5.3: Montar o dashboard executivo na aba 'Resumo' com gráficos nativos (Rosca e Linha)[cite: 1].
-- Etapa 5.4: Gerar a aba de auditoria 'Log_Execucao'[cite: 1].
+- Etapa 5.4: Gerar saidas executivas sem misturar logs ao Excel.
 """
 
 from __future__ import annotations
@@ -21,9 +21,15 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.chart import DoughnutChart, LineChart, Reference
+from operational_indicators import (
+    OperationalIndicators,
+    REGRA_NOMES,
+    consolidar_indicadores,
+)
 
 ARQUIVO_ENTRADA = "dados_entrada/inspecao_lotes_10dias.xlsx"
 ARQUIVO_SAIDA = "relatorio_conferencia_lotes.xlsx"
+ARQUIVO_RESUMO_EXECUTIVO = "resumo_executivo.md"
 
 COLUNAS_ENTRADA = [
     "lote_id", "produto", "linha", "turno",
@@ -294,21 +300,128 @@ def montar_dataframe(registros: list[RegistroValidado]) -> pd.DataFrame:
     return df
 
 
-def montar_resumo(df_todos: pd.DataFrame) -> pd.DataFrame:
-    total = len(df_todos)
-    contagem = df_todos["Classificação"].value_counts()
-
-    ordem = ["Válido", "Divergência", "Ambíguo", "Erro de Entrada"]
-    linhas = [{"Indicador": "Total de registros processados", "Quantidade": total, "% do total": "100,0%"}]
-    for categoria in ordem:
-        qtd = int(contagem.get(categoria, 0))
-        pct = (qtd / total * 100) if total else 0
-        linhas.append({
-            "Indicador": categoria + ("s" if categoria in ("Válido",) else ""),
-            "Quantidade": qtd,
-            "% do total": f"{pct:.1f}%".replace(".", ","),
-        })
+def montar_resumo(indicadores: OperationalIndicators) -> pd.DataFrame:
+    linhas = [
+        {
+            "Indicador": "Total de registros",
+            "Valor": indicadores.total_registros,
+            "%": "-",
+            "Referencia": "-",
+            "Sinal": "-",
+        },
+        {
+            "Indicador": "Registros válidos",
+            "Valor": indicadores.registros_validos,
+            "%": _fmt_pct(indicadores.percentual_validos),
+            "Referencia": "Informativa",
+            "Sinal": "-",
+        },
+        {
+            "Indicador": "Divergências",
+            "Valor": indicadores.divergencias,
+            "%": _fmt_pct(indicadores.percentual_divergencias),
+            "Referencia": "Informativa",
+            "Sinal": "-",
+        },
+        {
+            "Indicador": "Ambíguos",
+            "Valor": indicadores.ambiguos,
+            "%": _fmt_pct(indicadores.percentual_ambiguos),
+            "Referencia": "Informativa",
+            "Sinal": "-",
+        },
+        {
+            "Indicador": "Erros de Entrada",
+            "Valor": indicadores.erros_entrada,
+            "%": _fmt_pct(indicadores.percentual_erros_entrada),
+            "Referencia": "Informativa",
+            "Sinal": "-",
+        },
+        {
+            "Indicador": "Regra mais acionada",
+            "Valor": (
+                f"{indicadores.regra_mais_acionada} - "
+                f"{indicadores.regra_mais_acionada_nome} "
+                f"({indicadores.regra_mais_acionada_quantidade})"
+            ),
+            "%": "-",
+            "Referencia": "-",
+            "Sinal": "-",
+        },
+        {
+            "Indicador": "Taxa de qualidade da entrada",
+            "Valor": _fmt_pct(indicadores.taxa_qualidade_entrada),
+            "%": _fmt_pct(indicadores.taxa_qualidade_entrada),
+            "Referencia": "> 80%",
+            "Sinal": _sinal_meta(indicadores.taxa_qualidade_entrada >= 80),
+        },
+        {
+            "Indicador": "Taxa de revisão humana",
+            "Valor": _fmt_pct(indicadores.taxa_revisao_humana),
+            "%": _fmt_pct(indicadores.taxa_revisao_humana),
+            "Referencia": "< 15%",
+            "Sinal": _sinal_meta(indicadores.taxa_revisao_humana < 15),
+        },
+        {
+            "Indicador": "Taxa de retrabalho",
+            "Valor": _fmt_pct(indicadores.taxa_retrabalho),
+            "%": _fmt_pct(indicadores.taxa_retrabalho),
+            "Referencia": "< 6%",
+            "Sinal": _sinal_meta(indicadores.taxa_retrabalho < 6),
+        },
+        {
+            "Indicador": "Ganho estimado de tempo",
+            "Valor": (
+                f"{indicadores.ganho_estimado_minutos:.0f} min "
+                f"({indicadores.ganho_estimado_horas:.1f} h)"
+            ),
+            "%": "-",
+            "Referencia": "Estimativa didática",
+            "Sinal": "-",
+        },
+    ]
     return pd.DataFrame(linhas)
+
+
+def montar_ranking_regras(indicadores: OperationalIndicators) -> pd.DataFrame:
+    linhas = [
+        {
+            "Regra": item.regra,
+            "Descrição": item.nome,
+            "Ocorrências": item.quantidade,
+            "% do total": _fmt_pct(item.percentual_total),
+        }
+        for item in indicadores.ranking_regras
+    ]
+    if not linhas:
+        linhas.append(
+            {
+                "Regra": "-",
+                "Descrição": "Nenhuma regra acionada",
+                "Ocorrências": 0,
+                "% do total": "0,0%",
+            }
+        )
+    return pd.DataFrame(linhas)
+
+
+def montar_dicionario() -> pd.DataFrame:
+    termos = [
+        ("Válido", "Registro que passou por todas as validações automáticas."),
+        ("Divergência", "Registro que precisa de reconciliação com a base ou o processo."),
+        ("Ambíguo", "Registro que precisa de revisão humana por status não reconhecido."),
+        ("Erro de Entrada", "Registro com falha básica de preenchimento ou data inválida."),
+        ("RN05", REGRA_NOMES["RN05"]),
+        ("RN09", REGRA_NOMES["RN09"]),
+        ("RN10", REGRA_NOMES["RN10"]),
+        ("RN11", REGRA_NOMES["RN11"]),
+        ("RN12", REGRA_NOMES["RN12"]),
+        ("Taxa de qualidade da entrada", "Percentual de registros sem erro básico de entrada."),
+        ("Taxa de revisão humana", "Percentual de registros que a automação não decide sozinha."),
+        ("Taxa de retrabalho", "Percentual de registros que precisam de reconciliação."),
+        ("Ganho estimado de tempo", "Estimativa didática baseada em premissas de tempo manual e automatizado."),
+    ]
+    return pd.DataFrame(termos, columns=["Termo", "Descrição"])
 
 
 def formatar_aba(ws, cor_cabecalho="1F4E78"):
@@ -324,13 +437,36 @@ def formatar_aba(ws, cor_cabecalho="1F4E78"):
         ws.column_dimensions[letra].width = min(maior + 2, 50)
 
 
-def gerar_relatorio_excel(registros: list[RegistroValidado], caminho_saida) -> Path:
+def _fmt_pct(valor: float) -> str:
+    return f"{valor:.1f}%".replace(".", ",")
+
+
+def _fmt_decimal(valor: float) -> str:
+    return f"{valor:.1f}".replace(".", ",")
+
+
+def _sinal_meta(ok: bool) -> str:
+    return "OK" if ok else "ATENCAO"
+
+
+def _plural(quantidade: int, singular: str, plural: str) -> str:
+    return singular if quantidade == 1 else plural
+
+
+def gerar_relatorio_excel(
+    registros: list[RegistroValidado],
+    caminho_saida,
+    indicadores: OperationalIndicators | None = None,
+) -> Path:
+    indicadores = indicadores or consolidar_indicadores(registros)
     df_todos = montar_dataframe(registros)
     df_validos = df_todos[df_todos["Classificação"] == "Válido"]
     df_divergencias = df_todos[df_todos["Classificação"] == "Divergência"]
     df_ambiguos = df_todos[df_todos["Classificação"] == "Ambíguo"]
     df_erros = df_todos[df_todos["Classificação"] == "Erro de Entrada"]
-    df_resumo = montar_resumo(df_todos)
+    df_resumo = montar_resumo(indicadores)
+    df_ranking = montar_ranking_regras(indicadores)
+    df_dicionario = montar_dicionario()
 
     caminho_saida = Path(caminho_saida)
     
@@ -342,6 +478,8 @@ def gerar_relatorio_excel(registros: list[RegistroValidado], caminho_saida) -> P
         df_divergencias.to_excel(writer, sheet_name="Divergências", index=False)
         df_ambiguos.to_excel(writer, sheet_name="Ambíguos", index=False)
         df_erros.to_excel(writer, sheet_name="Erros de Entrada", index=False)
+        df_ranking.to_excel(writer, sheet_name="Ranking de Regras", index=False)
+        df_dicionario.to_excel(writer, sheet_name="Dicionário", index=False)
 
     # 2. Pós-processamento com openpyxl (Etapas 3 e 4)[cite: 1]
     wb = openpyxl.load_workbook(caminho_saida)
@@ -356,9 +494,9 @@ def gerar_relatorio_excel(registros: list[RegistroValidado], caminho_saida) -> P
     donut.title = "Distribuição de Status dos Lotes"
     donut.style = 10
     
-    data_donut = Reference(ws_resumo, min_col=2, min_row=1, max_row=5)
-    labels_donut = Reference(ws_resumo, min_col=1, min_row=2, max_row=5)
-    donut.add_data(data_donut, titles_from_data=True)
+    data_donut = Reference(ws_resumo, min_col=2, min_row=3, max_row=6)
+    labels_donut = Reference(ws_resumo, min_col=1, min_row=3, max_row=6)
+    donut.add_data(data_donut, titles_from_data=False)
     donut.set_categories(labels_donut)
     donut.width = 15
     donut.height = 10
@@ -396,33 +534,48 @@ def gerar_relatorio_excel(registros: list[RegistroValidado], caminho_saida) -> P
 
     ws_resumo.add_chart(line, "E17")
 
-    # --- ETAPA 5.4: Log de Execução[cite: 1] ---
-    ws_log = wb.create_sheet(title="Log_Execucao")
-    timestamp_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    total_reg = len(df_todos)
-    contagem_cls = df_todos["Classificação"].value_counts()
-
-    dados_log = [
-        ["Parâmetro de Auditoria", "Valor Registrado"],
-        ["Data/Hora da Execução", timestamp_atual],
-        ["Arquivo Analisado", ARQUIVO_ENTRADA],
-        ["Total de Registros Processados", total_reg],
-        ["Total Válidos", int(contagem_cls.get("Válido", 0))],
-        ["Total Divergências", int(contagem_cls.get("Divergência", 0))],
-        ["Total Ambíguos", int(contagem_cls.get("Ambíguo", 0))],
-        ["Total Erros de Entrada", int(contagem_cls.get("Erro de Entrada", 0))],
-        ["Status da Execução", "SUCESSO - Concluído sem exceções"],
-    ]
-
-    for r_idx, linha_log in enumerate(dados_log, start=1):
-        ws_log.cell(row=r_idx, column=1, value=linha_log[0])
-        ws_log.cell(row=r_idx, column=2, value=linha_log[1])
-
-    formatar_aba(ws_log)
-
     wb.save(caminho_saida)
     wb.close()
+    return caminho_saida
+
+
+def gerar_resumo_executivo(
+    indicadores: OperationalIndicators,
+    caminho_saida=ARQUIVO_RESUMO_EXECUTIVO,
+) -> Path:
+    caminho_saida = Path(caminho_saida)
+    caminho_saida.parent.mkdir(parents=True, exist_ok=True)
+
+    texto = f"""# Resumo Executivo da Conferência de Lotes
+
+## Visão Geral
+
+Foram processados {indicadores.total_registros} {_plural(indicadores.total_registros, "registro", "registros")} de inspeção. O resultado consolidado mostra {indicadores.registros_validos} {_plural(indicadores.registros_validos, "registro válido", "registros válidos")}, {indicadores.divergencias} {_plural(indicadores.divergencias, "divergência", "divergências")}, {indicadores.ambiguos} {_plural(indicadores.ambiguos, "caso ambíguo", "casos ambíguos")} e {indicadores.erros_entrada} {_plural(indicadores.erros_entrada, "erro de entrada", "erros de entrada")}.
+
+## Indicadores Principais
+
+- Registros válidos: {indicadores.registros_validos} ({_fmt_pct(indicadores.percentual_validos)})
+- Divergências: {indicadores.divergencias} ({_fmt_pct(indicadores.percentual_divergencias)})
+- Ambíguos: {indicadores.ambiguos} ({_fmt_pct(indicadores.percentual_ambiguos)})
+- Erros de entrada: {indicadores.erros_entrada} ({_fmt_pct(indicadores.percentual_erros_entrada)})
+- Taxa de qualidade da entrada: {_fmt_pct(indicadores.taxa_qualidade_entrada)}
+- Taxa de revisão humana: {_fmt_pct(indicadores.taxa_revisao_humana)}
+- Taxa de retrabalho: {_fmt_pct(indicadores.taxa_retrabalho)}
+
+## Destaque
+
+A regra mais acionada foi {indicadores.regra_mais_acionada} ({indicadores.regra_mais_acionada_nome}), com {indicadores.regra_mais_acionada_quantidade} {_plural(indicadores.regra_mais_acionada_quantidade, "ocorrência", "ocorrências")}. Esse ponto indica o principal gargalo operacional observado na rodada.
+
+## Ganho Estimado de Tempo
+
+Premissas usadas: {indicadores.tempo_manual_minutos_por_registro:.0f} {_plural(int(indicadores.tempo_manual_minutos_por_registro), "minuto", "minutos")} por registro em conferência manual e {indicadores.tempo_automatizado_minutos_por_registro:.0f} {_plural(int(indicadores.tempo_automatizado_minutos_por_registro), "minuto", "minutos")} por registro no fluxo automatizado. Com essas premissas, o ganho estimado é de {indicadores.ganho_estimado_minutos:.0f} minutos, ou {_fmt_decimal(indicadores.ganho_estimado_horas)} horas.
+
+## Observação
+
+O ganho de tempo é uma estimativa didática para apoiar a avaliação do exercício. Para virar uma métrica real de produção, seria necessário medir tempos executados em ambiente produtivo, com amostra controlada e histórico comparável.
+"""
+
+    caminho_saida.write_text(texto, encoding="utf-8")
     return caminho_saida
 
 
@@ -430,16 +583,28 @@ def gerar_relatorio_excel(registros: list[RegistroValidado], caminho_saida) -> P
 # Execução
 # ---------------------------------------------------------------------------
 
-def main(caminho_entrada=ARQUIVO_ENTRADA, caminho_saida=ARQUIVO_SAIDA):
+def main(
+    caminho_entrada=ARQUIVO_ENTRADA,
+    caminho_saida=ARQUIVO_SAIDA,
+    caminho_resumo=ARQUIVO_RESUMO_EXECUTIVO,
+):
     registros = consolidar_e_validar(caminho_entrada)
-    caminho_gerado = gerar_relatorio_excel(registros, caminho_saida)
+    indicadores = consolidar_indicadores(registros)
+    caminho_gerado = gerar_relatorio_excel(registros, caminho_saida, indicadores)
+    caminho_resumo_gerado = gerar_resumo_executivo(indicadores, caminho_resumo)
 
     total = len(registros)
     contagem = Counter(r.classificacao for r in registros)
     print(f"Registros processados: {total}")
     for categoria in ["Válido", "Divergência", "Ambíguo", "Erro de Entrada"]:
         print(f"  {categoria}: {contagem.get(categoria, 0)}")
+    print(
+        "Regra mais acionada: "
+        f"{indicadores.regra_mais_acionada} "
+        f"({indicadores.regra_mais_acionada_quantidade})"
+    )
     print(f"Relatório gerado em: {caminho_gerado.resolve()}")
+    print(f"Resumo executivo gerado em: {caminho_resumo_gerado.resolve()}")
 
     return registros
 

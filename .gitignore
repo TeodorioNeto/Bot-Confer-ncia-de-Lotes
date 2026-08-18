@@ -36,6 +36,7 @@ logs/
 data/output/
 reports/
 screenshots/
+resumo_executivo.md
 
 # SO
 .DS_Store

@@ -93,7 +93,7 @@ class DataFixa(datetime):
 
 
 @pytest.mark.integration
-def test_gerar_relatorio_excel_cria_abas_resumo_graficos_e_log(
+def test_gerar_relatorio_excel_cria_abas_resumo_graficos_e_dashboard(
     tmp_path,
     monkeypatch,
     registros_validados,
@@ -112,11 +112,11 @@ def test_gerar_relatorio_excel_cria_abas_resumo_graficos_e_log(
             "Divergências",
             "Ambíguos",
             "Erros de Entrada",
-            "Log_Execucao",
+            "Ranking de Regras",
+            "Dicionário",
         ]
         assert len(wb["Resumo"]._charts) == 2
-        assert wb["Log_Execucao"]["B2"].value == "2026-08-17 10:30:00"
-        assert wb["Log_Execucao"]["B4"].value == 4
+        assert wb["Resumo"]["B2"].value == 4
     finally:
         wb.close()
 

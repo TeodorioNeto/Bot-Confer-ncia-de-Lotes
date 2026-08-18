@@ -28,7 +28,10 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 - gera screenshot por item processado pela automação web;
 - replica no simulador web as linhas que feriram regras, como na aba `Formulario_Analise`;
 - publica o resumo JSON e a planilha analisada como artefatos no Maestro;
-- isola erros por item para que os registros seguintes continuem sendo processados.
+- isola erros por item para que os registros seguintes continuem sendo processados;
+- consolida indicadores operacionais em uma camada dedicada;
+- gera relatório executivo em Excel com dashboard, ranking de regras e dicionário;
+- gera `resumo_executivo.md` com os mesmos números do dashboard.
 
 ## Regras de negócio
 
@@ -49,10 +52,15 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 |-- bot.py                 # regras aplicadas a cada item
 |-- config.py              # ambiente, caminhos, DataPool e Vault
 |-- dispatcher.py          # valida a planilha e publica os lotes no DataPool
+|-- gerar_relatorio.py     # consolida RN01-RN12 e gera Excel/Markdown executivo
 |-- main.py                # orquestracao e finalizacao no Maestro
+|-- operational_indicators.py # fonte unica dos indicadores operacionais
 |-- simulador_inspecao_lotes.html # tela web simulada para Playwright/Selenium
 |-- doc.html               # painel web usado pelos Page Objects e testes E2E
 |-- vault_client.py        # leitura segura da credencial do ERP
+|-- docs/
+|   |-- PDD_Aula24_Indicadores.md
+|   `-- checklist_aula24.md
 |-- src/
 |   |-- analise_formulario.py
 |   |-- base_referencia.py
@@ -389,6 +397,39 @@ Os arquivos gerados ficam na pasta `logs/`:
 
 Quando a execução ocorre pelo Runner, o JSON, a planilha analisada e os screenshots gerados também são publicados como artefatos da tarefa no Maestro.
 
+## Relatório executivo
+
+A Aula 24 adiciona uma camada de indicadores em `operational_indicators.py`. Essa camada recebe a lista de registros validados e calcula uma única fonte de verdade para o Excel e para o resumo em Markdown.
+
+O relatório executivo é gerado pelo comando:
+
+```powershell
+python gerar_relatorio.py
+```
+
+Entradas e saídas padrão:
+
+| Artefato | Caminho padrão | Observação |
+| --- | --- | --- |
+| Entrada | `dados_entrada/inspecao_lotes_10dias.xlsx` | Planilha didática com 10 dias de inspeção |
+| Excel executivo | `relatorio_conferencia_lotes.xlsx` | Saída gerada localmente, fora do Git por regra de `.gitignore` |
+| Resumo executivo | `resumo_executivo.md` | Saída de negócio gerada a partir dos mesmos indicadores do Excel |
+
+O Excel executivo contém exatamente as 8 abas essenciais da Aula 24:
+
+- `Resumo`
+- `Todos`
+- `Válidos`
+- `Divergências`
+- `Ambíguos`
+- `Erros de Entrada`
+- `Ranking de Regras`
+- `Dicionário`
+
+A aba `Resumo` apresenta os 10 indicadores operacionais: total processado, válidos, divergências, ambíguos, erros de entrada, regra mais acionada, taxa de qualidade da entrada, taxa de revisão humana, taxa de retrabalho e ganho estimado de tempo.
+
+Premissas do ganho estimado: 5 minutos por registro em conferência manual e 1 minuto por registro no fluxo automatizado. O resultado é uma estimativa didática, não uma medição real de produção.
+
 ## Testes
 
 Instale as dependencias de desenvolvimento antes de rodar a suite completa:
@@ -419,13 +460,19 @@ python -m playwright install chromium
 python -m pytest tests/e2e -v --browser chromium
 ```
 
-A cobertura minima exigida para a Aula 23 e de 80%:
+A cobertura minima exigida para as Aulas 23 e 24 e de 80%:
 
 ```powershell
-python -m pytest --cov=src --cov=gerar_relatorio --cov-report=term-missing --cov-fail-under=80
+python -m pytest --cov=src --cov=gerar_relatorio --cov=operational_indicators --cov-report=term-missing --cov-fail-under=80
 ```
 
-O arquivo `.coveragerc` exclui os adaptadores de navegador e Page Objects da cobertura principal, porque eles sao exercitados na suite E2E com Playwright. A cobertura da Aula 23 fica concentrada nas regras de negocio, leitura/consolidacao, relatorios e integracoes sem sistemas reais.
+Para gerar uma evidencia anexavel de cobertura:
+
+```powershell
+python -m pytest --cov=src --cov=gerar_relatorio --cov=operational_indicators --cov-report=term-missing --cov-report=xml:reports/coverage.xml --cov-fail-under=80
+```
+
+O arquivo `.coveragerc` exclui os adaptadores de navegador e Page Objects da cobertura principal, porque eles sao exercitados na suite E2E com Playwright. A cobertura principal fica concentrada nas regras de negocio, leitura/consolidacao, indicadores, relatorios e integracoes sem sistemas reais.
 
 Tambem ha compatibilidade com `unittest` para as classes que usam `TestCase`, `setUp()` e `subTest()`:
 
@@ -433,7 +480,7 @@ Tambem ha compatibilidade com `unittest` para as classes que usam `TestCase`, `s
 python -m unittest discover -s tests -p "test*.py"
 ```
 
-Os testes da Aula 23 usam `tmp_path` para gerar planilhas temporarias, `MagicMock`/`monkeypatch` para simular a `Base_Referencia` e nao dependem de planilhas privadas, internet ou credenciais reais. No CI, os testes ficam separados em tres etapas: suite principal, `test-e2e` com Playwright real e `build-docker` com smoke test em container.
+Os testes das Aulas 23 e 24 usam `tmp_path` para gerar planilhas temporarias, `MagicMock`/`monkeypatch` para simular a `Base_Referencia` e nao dependem de planilhas privadas, internet ou credenciais reais. No CI, os testes ficam separados em tres etapas: suite principal, `test-e2e` com Playwright real e `build-docker` com smoke test em container.
 
 ## Pacote para BotCity Maestro
 
