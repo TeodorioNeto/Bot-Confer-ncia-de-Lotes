@@ -68,7 +68,17 @@ def test_pipeline_completo_com_planilha_temporaria(tmp_path, monkeypatch):
 
     relatorio = openpyxl.load_workbook(caminho_saida, data_only=True)
     try:
+        assert relatorio.sheetnames == [
+            "Resumo",
+            "Todos",
+            "Válidos",
+            "Divergências",
+            "Ambíguos",
+            "Erros de Entrada",
+            "Ranking de Regras",
+            "Dicionário",
+        ]
         assert relatorio["Resumo"]["B2"].value == 2
-        assert relatorio["Log_Execucao"]["B2"].value == "2026-08-17 11:00:00"
+        assert relatorio["Ranking de Regras"]["A2"].value == "RN10"
     finally:
         relatorio.close()

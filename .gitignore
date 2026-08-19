@@ -19,6 +19,8 @@ __pycache__/
 # Pytest / cache
 .pytest_cache/
 .cache/
+.coverage
+htmlcov/
 
 # Variáveis de ambiente / segredos
 .env
@@ -36,6 +38,7 @@ logs/
 data/output/
 reports/
 screenshots/
+resumo_executivo.md
 
 # SO
 .DS_Store
