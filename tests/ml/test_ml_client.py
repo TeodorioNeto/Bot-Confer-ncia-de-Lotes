@@ -4,7 +4,11 @@ from urllib.error import URLError
 import pytest
 
 import src.ml_client as ml_client_module
-from item_processor import REVISAO_ML_OFFLINE, classificar_ambiguo_com_ml
+from item_processor import (
+    REVISAO_ML_OFFLINE,
+    classificar_ambiguo_com_ml,
+    normalizar_turno_ml,
+)
 from src.ml_client import MLClient
 
 
@@ -101,3 +105,47 @@ def test_item_processor_aplica_revisao_ml_offline_quando_predicao_none():
 
     assert decisao["classe"] == REVISAO_ML_OFFLINE
     assert decisao["fallback"] is True
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("turno_datapool", "turno_modelo"),
+    [
+        ("A", "MANHA"),
+        ("B", "TARDE"),
+        ("C", "NOITE"),
+        ("manha", "MANHA"),
+        ("TARDE", "TARDE"),
+        (" noite ", "NOITE"),
+    ],
+)
+def test_normaliza_turno_operacional_para_dominio_do_modelo(
+    turno_datapool,
+    turno_modelo,
+):
+    assert normalizar_turno_ml(turno_datapool) == turno_modelo
+
+
+@pytest.mark.unit
+def test_item_processor_envia_turno_mapeado_para_ml_client():
+    class ItemFake:
+        def get_value(self, chave):
+            return {
+                "lote_id": "LG-2026-ML0003",
+                "status": "APROVADO PARCIAL",
+                "turno": "B",
+                "observacao": "Revisar acabamento",
+            }.get(chave)
+
+    class ClientCaptura:
+        def __init__(self):
+            self.payload = None
+
+        def classificar(self, payload):
+            self.payload = payload
+            return None
+
+    client = ClientCaptura()
+    classificar_ambiguo_com_ml(ItemFake(), client)
+
+    assert client.payload["turno"] == "TARDE"

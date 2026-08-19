@@ -424,6 +424,13 @@ O relatório executivo é gerado pelo comando:
 python gerar_relatorio.py
 ```
 
+O gerador identifica os casos ambíguos na própria planilha de 10 dias, envia
+cada um deles à API ML e preenche a aba `Decisões de ML`. Assim, a quantidade
+de decisões deve ser igual à quantidade de registros da aba `Ambíguos`, sem
+reaproveitar decisões do lote diário. O relatório diário
+`logs/inspecao_lotes_dia_analisado.xlsx` continua recebendo apenas as decisões
+da execução do `bot.py` antes de ser copiado ou publicado no Maestro.
+
 Entradas e saídas padrão:
 
 | Artefato | Caminho padrão | Observação |
@@ -451,6 +458,11 @@ Premissas do ganho estimado: 5 minutos por registro em conferência manual e 1 m
 ## Camada ML 24-A
 
 A camada ML classifica lotes ambíguos sem substituir as regras RN01-RN12. O bot continua responsável pela automação, a API FastAPI serve o modelo e `src/ml_client.py` faz a ponte com circuit breaker.
+
+Antes da chamada à API, o turno operacional do DataPool é convertido para o
+domínio usado no treinamento: `A` vira `MANHA`, `B` vira `TARDE` e `C` vira
+`NOITE`. A conversão altera somente o payload do modelo; o valor original
+permanece no DataPool e nos relatórios de negócio.
 
 O dataset fictício é gerado por `train_model.py` com 240 amostras históricas sintéticas. Cada amostra possui 3 features: `status_raw` codificado, `turno` codificado e `tem_obs`. As classes treinadas são `válido_automático`, `revisar` e `recusar_automático`.
 

@@ -27,11 +27,24 @@ from operational_indicators import (
     REGRA_NOMES,
     consolidar_indicadores,
 )
+from config import ML_API_URL, ML_MAX_FAILURES, ML_TIMEOUT_SECONDS
+from item_processor import classificar_ambiguo_com_ml
+from src.ml_client import MLClient
 
 ARQUIVO_ENTRADA = "dados_entrada/inspecao_lotes_10dias.xlsx"
 ARQUIVO_ENTRADA_LEGADO = "inspecao_lotes_10dias.xlsx"
 ARQUIVO_SAIDA = "relatorio_conferencia_lotes.xlsx"
 ARQUIVO_RESUMO_EXECUTIVO = "resumo_executivo.md"
+
+COLUNAS_DECISOES_ML = [
+    "lote_id",
+    "classe",
+    "probabilidade",
+    "nivel_confianca",
+    "acao",
+    "latencia_ms",
+    "fallback",
+]
 
 COLUNAS_ENTRADA = [
     "lote_id", "produto", "linha", "turno",
@@ -446,16 +459,7 @@ def montar_dicionario() -> pd.DataFrame:
 
 
 def montar_decisoes_ml(decisoes_ml: list[dict] | None = None) -> pd.DataFrame:
-    colunas = [
-        "lote_id",
-        "classe",
-        "probabilidade",
-        "nivel_confianca",
-        "acao",
-        "latencia_ms",
-        "fallback",
-    ]
-    return pd.DataFrame(decisoes_ml or [], columns=colunas)
+    return pd.DataFrame(decisoes_ml or [], columns=COLUNAS_DECISOES_ML)
 
 
 def formatar_aba(ws, cor_cabecalho="1F4E78"):
@@ -469,6 +473,54 @@ def formatar_aba(ws, cor_cabecalho="1F4E78"):
         maior = max((len(str(c.value)) for c in coluna if c.value is not None), default=10)
         letra = get_column_letter(coluna[0].column)
         ws.column_dimensions[letra].width = min(maior + 2, 50)
+
+
+def gravar_decisoes_ml_em_excel(
+    caminho_excel,
+    decisoes_ml: list[dict] | None,
+) -> Path:
+    """Cria ou substitui a aba de auditoria ML em um relatório existente."""
+    caminho_excel = Path(caminho_excel)
+    if not caminho_excel.exists():
+        raise FileNotFoundError(f"Relatório Excel não encontrado: {caminho_excel}")
+
+    wb = openpyxl.load_workbook(caminho_excel)
+    try:
+        if "Decisões de ML" in wb.sheetnames:
+            wb.remove(wb["Decisões de ML"])
+
+        ws = wb.create_sheet("Decisões de ML")
+        ws.append(COLUNAS_DECISOES_ML)
+        for decisao in decisoes_ml or []:
+            ws.append([decisao.get(coluna) for coluna in COLUNAS_DECISOES_ML])
+
+        formatar_aba(ws)
+        wb.save(caminho_excel)
+    finally:
+        wb.close()
+
+    return caminho_excel
+
+
+def classificar_registros_ambiguos_com_ml(
+    registros: list[RegistroValidado],
+    ml_client,
+) -> list[dict]:
+    """Classifica somente os ambíguos consolidados da planilha de 10 dias."""
+    decisoes_ml = []
+    for registro in registros:
+        if registro.classificacao != "Ambíguo":
+            continue
+
+        item_ml = {
+            "lote_id": registro.lote_id,
+            "status": registro.status_original,
+            "turno": registro.turno,
+            "observacao": registro.observacao,
+        }
+        decisoes_ml.append(classificar_ambiguo_com_ml(item_ml, ml_client))
+
+    return decisoes_ml
 
 
 def _fmt_pct(valor: float) -> str:
@@ -624,10 +676,27 @@ def main(
     caminho_entrada=ARQUIVO_ENTRADA,
     caminho_saida=ARQUIVO_SAIDA,
     caminho_resumo=ARQUIVO_RESUMO_EXECUTIVO,
+    decisoes_ml: list[dict] | None = None,
+    ml_client=None,
 ):
     registros = consolidar_e_validar(caminho_entrada)
     indicadores = consolidar_indicadores(registros)
-    caminho_gerado = gerar_relatorio_excel(registros, caminho_saida, indicadores)
+    if decisoes_ml is None:
+        ml_client = ml_client or MLClient(
+            ML_API_URL,
+            timeout=ML_TIMEOUT_SECONDS,
+            max_failures=ML_MAX_FAILURES,
+        )
+        decisoes_ml = classificar_registros_ambiguos_com_ml(
+            registros,
+            ml_client,
+        )
+    caminho_gerado = gerar_relatorio_excel(
+        registros,
+        caminho_saida,
+        indicadores,
+        decisoes_ml,
+    )
     caminho_resumo_gerado = gerar_resumo_executivo(indicadores, caminho_resumo)
 
     total = len(registros)
@@ -635,6 +704,10 @@ def main(
     print(f"Registros processados: {total}")
     for categoria in ["Válido", "Divergência", "Ambíguo", "Erro de Entrada"]:
         print(f"  {categoria}: {contagem.get(categoria, 0)}")
+    print(
+        "Decisões ML: "
+        f"{len(decisoes_ml)} de {contagem.get('Ambíguo', 0)} casos ambíguos"
+    )
     print(
         "Regra mais acionada: "
         f"{indicadores.regra_mais_acionada} "

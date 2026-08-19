@@ -39,6 +39,7 @@ from src.web_automation import (
     processar_item_web,
 )
 from src.ml_client import MLClient
+from gerar_relatorio import gravar_decisoes_ml_em_excel
 
 logger = setup_logger(__name__)
 
@@ -111,11 +112,6 @@ def main():
         _, resultados_planilha, resumo_analise = analisar_e_preencher_formulario(
             ARQUIVO_INSPECAO,
             caminho_planilha_analisada,
-        )
-        DATA_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(
-            caminho_planilha_analisada,
-            DATA_OUTPUT_DIR / caminho_planilha_analisada.name,
         )
 
         if WEB_AUTOMATION_ENABLED and not conectado_maestro:
@@ -215,6 +211,17 @@ def main():
         caminho_resumo.write_text(
             json.dumps(resumo, indent=2, ensure_ascii=False),
             encoding="utf-8",
+        )
+
+        gravar_decisoes_ml_em_excel(caminho_planilha_analisada, decisoes_ml)
+        logger.info(
+            "Relatório Excel atualizado com %d decisões ML.",
+            len(decisoes_ml),
+        )
+        DATA_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(
+            caminho_planilha_analisada,
+            DATA_OUTPUT_DIR / caminho_planilha_analisada.name,
         )
 
         if task_id:

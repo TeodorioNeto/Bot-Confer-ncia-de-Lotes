@@ -8,6 +8,11 @@ from typing import Any
 
 
 REVISAO_ML_OFFLINE = "REVISAO_ML_OFFLINE"
+TURNOS_ML = {
+    "A": "MANHA",
+    "B": "TARDE",
+    "C": "NOITE",
+}
 
 
 def classificar_ambiguo_com_ml(
@@ -19,7 +24,7 @@ def classificar_ambiguo_com_ml(
     payload = {
         "lote_id": _valor(item, "lote_id"),
         "status_raw": _valor(item, "status"),
-        "turno": _valor(item, "turno"),
+        "turno": normalizar_turno_ml(_valor(item, "turno")),
         "tem_obs": bool(str(_valor(item, "observacao") or "").strip()),
     }
     predicao = ml_client.classificar(payload) if ml_client is not None else None
@@ -50,6 +55,12 @@ def classificar_ambiguo_com_ml(
             json.dumps(decisao, ensure_ascii=False, sort_keys=True),
         )
     return decisao
+
+
+def normalizar_turno_ml(turno: Any) -> str:
+    """Converte o turno operacional A/B/C para o domínio usado pelo modelo."""
+    turno_normalizado = str(turno or "").strip().upper()
+    return TURNOS_ML.get(turno_normalizado, turno_normalizado)
 
 
 def _valor(item: Any, chave: str):
