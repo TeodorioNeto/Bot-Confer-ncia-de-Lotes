@@ -5,6 +5,7 @@ Escopo deste script:
 - Etapas 5.1 e 5.2: consolidar, validar (RN01-RN12) e gerar as 8 abas do Excel.
 - Etapa 5.3: montar o dashboard executivo na aba 'Resumo' com gráficos nativos.
 - Etapa 5.4: Gerar saidas executivas sem misturar logs ao Excel.
+- Aula 24-A: adicionar a aba 'Decisões de ML' para auditoria do classificador.
 """
 
 from __future__ import annotations
@@ -444,6 +445,19 @@ def montar_dicionario() -> pd.DataFrame:
     return pd.DataFrame(termos, columns=["Termo", "Descrição"])
 
 
+def montar_decisoes_ml(decisoes_ml: list[dict] | None = None) -> pd.DataFrame:
+    colunas = [
+        "lote_id",
+        "classe",
+        "probabilidade",
+        "nivel_confianca",
+        "acao",
+        "latencia_ms",
+        "fallback",
+    ]
+    return pd.DataFrame(decisoes_ml or [], columns=colunas)
+
+
 def formatar_aba(ws, cor_cabecalho="1F4E78"):
     for celula in ws[1]:
         celula.font = Font(bold=True, color="FFFFFF")
@@ -477,6 +491,7 @@ def gerar_relatorio_excel(
     registros: list[RegistroValidado],
     caminho_saida,
     indicadores: OperationalIndicators | None = None,
+    decisoes_ml: list[dict] | None = None,
 ) -> Path:
     indicadores = indicadores or consolidar_indicadores(registros)
     df_todos = montar_dataframe(registros)
@@ -487,6 +502,7 @@ def gerar_relatorio_excel(
     df_resumo = montar_resumo(indicadores)
     df_ranking = montar_ranking_regras(indicadores)
     df_dicionario = montar_dicionario()
+    df_decisoes_ml = montar_decisoes_ml(decisoes_ml)
 
     caminho_saida = Path(caminho_saida)
     
@@ -500,6 +516,7 @@ def gerar_relatorio_excel(
         df_erros.to_excel(writer, sheet_name="Erros de Entrada", index=False)
         df_ranking.to_excel(writer, sheet_name="Ranking de Regras", index=False)
         df_dicionario.to_excel(writer, sheet_name="Dicionário", index=False)
+        df_decisoes_ml.to_excel(writer, sheet_name="Decisões de ML", index=False)
 
     # 2. Pós-processamento com openpyxl (Etapas 3 e 4)[cite: 1]
     wb = openpyxl.load_workbook(caminho_saida)

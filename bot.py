@@ -17,9 +17,10 @@ from src.validacao import (
     status_ambiguo,
     valida_status,
 )
+from item_processor import REVISAO_ML_OFFLINE, classificar_ambiguo_com_ml
 
 
-def processar_item(item, base_referencia):
+def processar_item(item, base_referencia, ml_client=None, logger=None):
     """
     Aplica as regras de negócio a um único item (uma linha da planilha).
 
@@ -41,6 +42,7 @@ def processar_item(item, base_referencia):
     divergencias = []
     avisos = []
     analises = []
+    ml_decisoes = []
 
     def registrar(regra, problema, acao, categoria="divergencia"):
         analises.append(
@@ -99,11 +101,45 @@ def processar_item(item, base_referencia):
                 "Corrigir para APROVADO, REPROVADO ou PENDENTE",
             )
         if status_ambiguo(status):
-            registrar(
-                "RN06",
-                f"Status '{status}' não reconhecível nem normalizável",
-                "Encaminhar o registro para revisão humana",
-            )
+            if ml_client is None:
+                registrar(
+                    "RN06",
+                    f"Status '{status}' não reconhecível nem normalizável",
+                    "Encaminhar o registro para revisão humana",
+                )
+            else:
+                decisao_ml = classificar_ambiguo_com_ml(
+                    item,
+                    ml_client,
+                    logger=logger,
+                )
+                ml_decisoes.append(decisao_ml)
+                if decisao_ml["classe"] == REVISAO_ML_OFFLINE:
+                    registrar(
+                        "ML_OFFLINE",
+                        "Classificador ML indisponível durante status ambíguo",
+                        "Encaminhar para revisão humana sem interromper o bot",
+                    )
+                elif decisao_ml["acao"] == "acao_automatica":
+                    registrar(
+                        "ML",
+                        (
+                            f"Status ambíguo classificado como "
+                            f"{decisao_ml['classe']} "
+                            f"({decisao_ml['probabilidade']:.2f})"
+                        ),
+                        "Aplicar decisão automática do classificador",
+                        categoria="aviso",
+                    )
+                else:
+                    registrar(
+                        "ML",
+                        (
+                            f"Status ambíguo exige revisão "
+                            f"({decisao_ml['nivel_confianca']})"
+                        ),
+                        "Encaminhar para revisão humana com prioridade definida pelo ML",
+                    )
 
     # RN07: observação obrigatória quando reprovado.
     observacao = item.get_value("observacao")
@@ -125,6 +161,7 @@ def processar_item(item, base_referencia):
         "divergencias": divergencias,
         "avisos": avisos,
         "analises": analises,
+        "ml_decisoes": ml_decisoes,
     }
 
 

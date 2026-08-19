@@ -23,6 +23,10 @@ from config import (
     LOGS_DIR,
     WEB_AUTOMATION_DRIVER,
     WEB_AUTOMATION_ENABLED,
+    ML_API_URL,
+    ML_ENABLED,
+    ML_MAX_FAILURES,
+    ML_TIMEOUT_SECONDS,
 )
 from src.logger import setup_logger
 from vault_client import obter_credencial_erp
@@ -34,6 +38,7 @@ from src.web_automation import (
     processar_datapool as processar_datapool_web,
     processar_item_web,
 )
+from src.ml_client import MLClient
 
 logger = setup_logger(__name__)
 
@@ -46,6 +51,8 @@ def main():
     total = processados = falhados = 0
     resultado_automacao_web = None
     evidencias_web_por_lote = {}
+    ml_client = None
+    decisoes_ml = []
     try:
         maestro = BotMaestroSDK.from_sys_args()
         task_id = getattr(maestro, "task_id", None)
@@ -91,6 +98,14 @@ def main():
                 "evidencias": [],
                 "erros": [],
             }
+
+        if ML_ENABLED:
+            ml_client = MLClient(
+                ML_API_URL,
+                timeout=ML_TIMEOUT_SECONDS,
+                max_failures=ML_MAX_FAILURES,
+            )
+            logger.info("Camada ML habilitada em %s.", ML_API_URL)
 
         caminho_planilha_analisada = LOGS_DIR / "inspecao_lotes_dia_analisado.xlsx"
         _, resultados_planilha, resumo_analise = analisar_e_preencher_formulario(
@@ -142,7 +157,13 @@ def main():
                     break
 
                 total += 1
-                resultado = processar_item(item, base_referencia)
+                resultado = processar_item(
+                    item,
+                    base_referencia,
+                    ml_client=ml_client,
+                    logger=logger,
+                )
+                decisoes_ml.extend(resultado.get("ml_decisoes", []))
                 if WEB_AUTOMATION_ENABLED:
                     _processar_evidencia_web_do_item(
                         item,
@@ -187,6 +208,7 @@ def main():
             "falhados": falhados,
             "analise_planilha": resumo_analise,
             "web_automation": resultado_automacao_web,
+            "decisoes_ml": decisoes_ml,
             "divergencias": resumo_divergencias,
         }
         caminho_resumo = LOGS_DIR / "resumo_execucao.json"

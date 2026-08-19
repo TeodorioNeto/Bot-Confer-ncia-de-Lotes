@@ -77,6 +77,7 @@ def test_pipeline_completo_com_planilha_temporaria(tmp_path, monkeypatch):
             "Erros de Entrada",
             "Ranking de Regras",
             "Dicionário",
+            "Decisões de ML",
         ]
         assert relatorio["Resumo"]["B2"].value == 2
         assert relatorio["Ranking de Regras"]["A2"].value == "RN10"

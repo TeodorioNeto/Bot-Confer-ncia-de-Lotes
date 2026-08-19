@@ -31,7 +31,9 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 - isola erros por item para que os registros seguintes continuem sendo processados;
 - consolida indicadores operacionais em uma camada dedicada;
 - gera relatório executivo em Excel com dashboard, ranking de regras e dicionário;
-- gera `resumo_executivo.md` com os mesmos números do dashboard.
+- gera `resumo_executivo.md` com os mesmos números do dashboard;
+- classifica lotes ambíguos por uma API ML FastAPI com fallback seguro;
+- registra decisões de ML e mantém o bot processando quando a API cai.
 
 ## Regras de negócio
 
@@ -53,14 +55,25 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 |-- config.py              # ambiente, caminhos, DataPool e Vault
 |-- dispatcher.py          # valida a planilha e publica os lotes no DataPool
 |-- gerar_relatorio.py     # consolida RN01-RN12 e gera Excel/Markdown executivo
+|-- train_model.py         # gera dataset ficticio e treina o classificador ML
 |-- main.py                # orquestracao e finalizacao no Maestro
 |-- operational_indicators.py # fonte unica dos indicadores operacionais
+|-- item_processor.py      # ponte entre RN06 e camada ML resiliente
+|-- api_ml/
+|   |-- main.py
+|   |-- features.py
+|   |-- requirements.txt
+|   `-- Dockerfile
+|-- models/
+|   `-- classificador_lotes.pkl
 |-- simulador_inspecao_lotes.html # tela web simulada para Playwright/Selenium
 |-- doc.html               # painel web usado pelos Page Objects e testes E2E
 |-- vault_client.py        # leitura segura da credencial do ERP
 |-- docs/
 |   |-- PDD_Aula24_Indicadores.md
-|   `-- checklist_aula24.md
+|   |-- PDD_24A_ML_RPA.md
+|   |-- checklist_aula24.md
+|   `-- checklist_24A_ml_rpa.md
 |-- src/
 |   |-- analise_formulario.py
 |   |-- base_referencia.py
@@ -129,6 +142,10 @@ ARQUIVO_INSPECAO=dados_entrada/inspecao_lotes_dia.xlsx
 WEB_AUTOMATION_ENABLED=false
 WEB_AUTOMATION_DRIVER=playwright
 WEB_AUTOMATION_URL=
+ML_ENABLED=false
+ML_API_URL=http://127.0.0.1:8000
+ML_TIMEOUT_SECONDS=2
+ML_MAX_FAILURES=5
 PLAYWRIGHT_HEADLESS=false
 EDGE_DRIVER_PATH=C:\msedgedriver.exe
 SCREENSHOTS_DIR=logs/screenshots
@@ -415,7 +432,7 @@ Entradas e saídas padrão:
 | Excel executivo | `relatorio_conferencia_lotes.xlsx` | Saída gerada localmente, fora do Git por regra de `.gitignore` |
 | Resumo executivo | `resumo_executivo.md` | Saída de negócio gerada a partir dos mesmos indicadores do Excel |
 
-O Excel executivo contém exatamente as 8 abas essenciais da Aula 24:
+O Excel executivo da Aula 24-A contém 9 abas:
 
 - `Resumo`
 - `Todos`
@@ -425,10 +442,60 @@ O Excel executivo contém exatamente as 8 abas essenciais da Aula 24:
 - `Erros de Entrada`
 - `Ranking de Regras`
 - `Dicionário`
+- `Decisões de ML`
 
 A aba `Resumo` apresenta os 10 indicadores operacionais: total processado, válidos, divergências, ambíguos, erros de entrada, regra mais acionada, taxa de qualidade da entrada, taxa de revisão humana, taxa de retrabalho e ganho estimado de tempo.
 
 Premissas do ganho estimado: 5 minutos por registro em conferência manual e 1 minuto por registro no fluxo automatizado. O resultado é uma estimativa didática, não uma medição real de produção.
+
+## Camada ML 24-A
+
+A camada ML classifica lotes ambíguos sem substituir as regras RN01-RN12. O bot continua responsável pela automação, a API FastAPI serve o modelo e `src/ml_client.py` faz a ponte com circuit breaker.
+
+O dataset fictício é gerado por `train_model.py` com 240 amostras históricas sintéticas. Cada amostra possui 3 features: `status_raw` codificado, `turno` codificado e `tem_obs`. As classes treinadas são `válido_automático`, `revisar` e `recusar_automático`.
+
+Para regenerar o dataset e o modelo:
+
+```powershell
+python train_model.py
+```
+
+O script grava:
+
+```text
+data/samples/lotes_historicos_ml.csv
+models/classificador_lotes.pkl
+```
+
+Para subir apenas a API ML localmente:
+
+```powershell
+python -m pip install -r api_ml/requirements.txt
+uvicorn api_ml.main:app --host 127.0.0.1 --port 8000
+```
+
+Endpoints:
+
+```text
+GET  /health
+POST /predict
+```
+
+Limiar de confiança:
+
+- probabilidade `>= 0,85`: ação automática;
+- probabilidade entre `0,65` e `0,85`: revisar;
+- probabilidade `< 0,65`: revisar prioritário.
+
+Para habilitar o ML no bot:
+
+```powershell
+$env:ML_ENABLED='true'
+$env:ML_API_URL='http://127.0.0.1:8000'
+python main.py
+```
+
+Se a API cair, `MLClient` retorna `None`, abre circuit breaker após 5 falhas consecutivas e o bot registra `REVISAO_ML_OFFLINE`, continuando o processamento.
 
 ## Testes
 
@@ -463,14 +530,14 @@ python -m pytest tests/e2e -v --browser chromium
 A cobertura minima exigida para as Aulas 23 e 24 e de 80%:
 
 ```powershell
-python -m pytest --cov=src --cov=gerar_relatorio --cov=operational_indicators --cov-report=term-missing --cov-fail-under=80
+python -m pytest --cov=src --cov=api_ml --cov=gerar_relatorio --cov=operational_indicators --cov=item_processor --cov-report=term-missing --cov-fail-under=80
 ```
 
 Para gerar uma evidencia anexavel de cobertura:
 
 ```powershell
 New-Item -ItemType Directory -Force reports | Out-Null
-python -m pytest --cov=src --cov=gerar_relatorio --cov=operational_indicators --cov-report=term-missing --cov-report=xml:reports/coverage.xml --cov-fail-under=80
+python -m pytest --cov=src --cov=api_ml --cov=gerar_relatorio --cov=operational_indicators --cov=item_processor --cov-report=term-missing --cov-report=xml:reports/coverage.xml --cov-fail-under=80
 ```
 
 No GitHub Actions, o mesmo relatório é publicado como artefato `coverage-report` da execução do CI.

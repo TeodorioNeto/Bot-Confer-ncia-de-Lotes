@@ -22,6 +22,7 @@ ABAS_ESSENCIAIS = {
     "Erros de Entrada",
     "Ranking de Regras",
     "Dicionário",
+    "Decisões de ML",
 }
 
 
@@ -58,7 +59,19 @@ def test_relatorio_consolidado_cria_8_abas_essenciais_e_resumo_sincronizado(tmp_
     caminho_excel = tmp_path / "relatorio_conferencia_lotes.xlsx"
     caminho_md = tmp_path / "resumo_executivo.md"
 
-    gerar_relatorio_excel(registros, caminho_excel, indicadores)
+    decisoes_ml = [
+        {
+            "lote_id": "LG-2026-00007",
+            "classe": "revisar",
+            "probabilidade": 0.72,
+            "nivel_confianca": "media",
+            "acao": "revisar",
+            "latencia_ms": 18.4,
+            "fallback": False,
+        }
+    ]
+
+    gerar_relatorio_excel(registros, caminho_excel, indicadores, decisoes_ml)
     gerar_resumo_executivo(indicadores, caminho_md)
 
     wb = openpyxl.load_workbook(caminho_excel, data_only=True)
@@ -69,6 +82,8 @@ def test_relatorio_consolidado_cria_8_abas_essenciais_e_resumo_sincronizado(tmp_
         assert wb["Ranking de Regras"]["A2"].value == "RN05"
         assert wb["Ranking de Regras"]["C2"].value == 2
         assert wb["Dicionário"]["A2"].value == "Válido"
+        assert wb["Decisões de ML"]["A2"].value == "LG-2026-00007"
+        assert wb["Decisões de ML"]["B2"].value == "revisar"
         assert len(wb["Resumo"]._charts) == 2
     finally:
         wb.close()
