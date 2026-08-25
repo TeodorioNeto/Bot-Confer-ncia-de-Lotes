@@ -12,6 +12,8 @@ x-bot-conferencia: &bot-conferencia
     WEB_AUTOMATION_ENABLED: ${WEB_AUTOMATION_ENABLED:-true}
     WEB_AUTOMATION_DRIVER: ${WEB_AUTOMATION_DRIVER:-playwright}
     PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
+    ML_ENABLED: ${ML_ENABLED:-false}
+    ML_API_URL: ${ML_API_URL:-http://api-ml:8000}
     SCREENSHOTS_DIR: /app/screenshots
     DATA_OUTPUT_DIR: /app/data/output
     ARQUIVO_INSPECAO: ${ARQUIVO_INSPECAO:-dados_entrada/inspecao_lotes_dia.xlsx}
@@ -30,3 +32,16 @@ services:
   bot-conferencia:
     <<: *bot-conferencia
     profiles: ["formulario"]
+
+  api-ml:
+    build:
+      context: .
+      dockerfile: api_ml/Dockerfile
+    image: classificador-lotes:local
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

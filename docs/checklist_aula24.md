@@ -20,7 +20,7 @@
 
 ## D. Relatorio Excel
 
-- [X] Exatamente 8 abas essenciais presentes.
+- [X] 8 abas essenciais presentes na Aula 24; Aula 24-A expande para 9 com `Decisões de ML`.
 - [X] Aba `Resumo` exibe os 10 indicadores.
 - [X] Graficos continuam nativos do Excel.
 - [X] Aba `Ranking de Regras` ordenada pela regra mais acionada.

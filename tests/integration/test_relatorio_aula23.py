@@ -114,6 +114,7 @@ def test_gerar_relatorio_excel_cria_abas_resumo_graficos_e_dashboard(
             "Erros de Entrada",
             "Ranking de Regras",
             "Dicionário",
+            "Decisões de ML",
         ]
         assert len(wb["Resumo"]._charts) == 2
         assert wb["Resumo"]["B2"].value == 4

@@ -27,7 +27,7 @@ A automacao ja valida os registros de lotes, separa divergencias, ambiguidades e
 
 | Saida | Finalidade |
 | --- | --- |
-| `relatorio_conferencia_lotes.xlsx` | Relatorio executivo com exatamente 8 abas essenciais e graficos nativos |
+| `relatorio_conferencia_lotes.xlsx` | Relatorio executivo com 9 abas apos a camada ML 24-A |
 | `resumo_executivo.md` | Resumo em linguagem de negocio para diretoria |
 | `Ranking de Regras` | Contagem das regras mais acionadas |
 | `Dicionário` | Glossario de termos e indicadores |
@@ -51,7 +51,7 @@ O ganho estimado usa 5 minutos por registro em conferencia manual e 1 minuto por
 
 ## Criterios de Aceite
 
-- O Excel possui exatamente as 8 abas essenciais da Aula 24.
+- O Excel possui as 9 abas finais, incluindo `Decisões de ML`.
 - A aba `Resumo` apresenta os 10 indicadores.
 - `Ranking de Regras` usa a mesma contagem usada pelo indicador de regra mais acionada.
 - `resumo_executivo.md` apresenta os mesmos numeros do Excel.

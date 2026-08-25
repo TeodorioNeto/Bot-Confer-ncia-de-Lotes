@@ -4,3 +4,8 @@
 pytest
 pytest-playwright
 pytest-cov
+fastapi
+httpx
+joblib
+scikit-learn
+uvicorn[standard]
