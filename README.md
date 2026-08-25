@@ -54,6 +54,10 @@ Repositório no GitHub: https://github.com/TeodorioNeto/Bot-Confer-ncia-de-Lotes
 |-- bot.py                 # regras aplicadas a cada item
 |-- config.py              # ambiente, caminhos, DataPool e Vault
 |-- dispatcher.py          # valida a planilha e publica os lotes no DataPool
+|-- orchestrator.py        # Bot A: preflight e disparo sequencial do Bot B
+|-- bot_conferencia_ml.py  # Bot B: RN01-RN03 e causa provavel via ML
+|-- bot_relatorio_alertas.py # Bot C: relatorio e alertas resilientes
+|-- wait_for_predecessor.py # espera controlada entre tarefas do pipeline
 |-- gerar_relatorio.py     # consolida RN01-RN12 e gera Excel/Markdown executivo
 |-- train_model.py         # gera dataset ficticio e treina o classificador ML
 |-- main.py                # orquestracao e finalizacao no Maestro
@@ -508,6 +512,224 @@ python main.py
 ```
 
 Se a API cair, `MLClient` retorna `None`, abre circuit breaker após 5 falhas consecutivas e o bot registra `REVISAO_ML_OFFLINE`, continuando o processamento.
+
+## Pipeline corporativo S10-B — Bot A
+
+O `orchestrator.py` e o ponto de entrada do primeiro bot do pipeline. Ele faz
+o preflight da base de referencia com retry e backoff linear, popula o
+DataPool e cria a tarefa do Bot B por `create_task()`.
+
+Fluxo implementado nesta etapa:
+
+```text
+Bot A (orchestrator.py)
+  -> preflight da Base_Referencia
+  -> Dispatcher / DataPool
+  -> create_task(Bot B)
+  -> finish_task(Bot A)
+```
+
+Configure no `.env` os labels registrados no Maestro:
+
+Use `.env.example` como referência e mantenha o `.env` real fora do Git.
+
+```env
+PIPELINE_BOT_A_LABEL=teodorio-orquestrador-v1
+PIPELINE_BOT_B_LABEL=teodorio-conferencia-ml-v1
+PIPELINE_BOT_C_LABEL=teodorio-relatorio-alertas-v1
+PIPELINE_PRIORITY=5
+PIPELINE_TEST_MODE=false
+
+BASE_RETRY_MAX_ATTEMPTS=3
+BASE_RETRY_DELAY_SECONDS=1
+ARQUIVO_BASE_REFERENCIA=dados_entrada/inspecao_lotes_dia.xlsx
+PIPELINE_WAIT_TIMEOUT_SECONDS=300
+PIPELINE_POLL_INTERVAL_SECONDS=5
+```
+
+`ARQUIVO_BASE_REFERENCIA` pode apontar para um arquivo separado da planilha de
+entrada. Isso permite simular a indisponibilidade da base sem remover os itens
+que o Dispatcher precisa publicar.
+
+O Bot B recebe os seguintes parametros de rastreamento:
+
+```text
+pipeline_id
+correlation_id
+predecessor_task_id
+predecessor_activity_label
+predecessor_result
+base_reference_status
+base_reference_count
+dispatcher_result
+execution_chain
+triggered_at
+```
+
+Quando a base permanece indisponivel apos todas as tentativas, o Bot A nao
+interrompe a cadeia. Ele cria o Bot B com
+`predecessor_result=PENDENTE_REVISAO`, registra
+`base_reference_status=indisponivel` e finaliza sua tarefa como
+`PARTIALLY_COMPLETED`.
+
+Para validar somente o preflight sem criar tarefas externas, mantenha
+`MAESTRO_ENABLED=false` e execute:
+
+```powershell
+python orchestrator.py
+```
+
+No Runner do Maestro, cadastre os pontos de entrada:
+
+| Bot | Label padrão | Ponto de entrada |
+| --- | --- | --- |
+| A | `teodorio-orquestrador-v1` | `orchestrator.py` |
+| B | `teodorio-conferencia-ml-v1` | `bot_conferencia_ml.py` |
+| C | `teodorio-relatorio-alertas-v1` | `bot_relatorio_alertas.py` |
+
+Os argumentos do Runner identificam a tarefa atual automaticamente.
+
+Ao finalizar, cada bot informa ao Maestro `total_items`, `processed_items` e
+`failed_items`. O Bot A usa os totais do Dispatcher, o Bot B usa o resultado
+do consumo do DataPool e o Bot C usa o resumo consolidado. Esses contadores
+alimentam os indicadores de eficiência e evitam o aviso de itens não
+reportados na fila de tarefas.
+
+### Bot B — decisão híbrida RPA + ML
+
+O Bot B mantém a decisão de negócio independente do ML:
+
+```text
+RN01-RN03 -> VALIDO / DIVERGENCIA / PENDENTE_REVISAO
+observacao -> ClassificadorDivergencia -> causa_provavel
+```
+
+O classificador pode usar um endpoint configurado em `ML_DIVERGENCIA_URL` ou
+o mock local controlável incluído no projeto. Em qualquer erro ele retorna
+fallback e nunca propaga exceção ao loop do DataPool.
+
+```env
+ML_ENABLED=true
+ML_CONFIANCA_MINIMA=0.85
+ML_DIVERGENCIA_URL=
+ML_DIVERGENCIA_TIMEOUT_SECONDS=2
+ML_DIVERGENCIA_MOCK_DELAY_SECONDS=0
+ML_DIVERGENCIA_FORCE_CONFIDENCE=
+ML_DIVERGENCIA_FORCE_ERROR=false
+DEAD_LETTER_FILE=logs/dead_letter_pipeline.jsonl
+```
+
+Cada divergência recebe:
+
+```text
+causa_provavel
+origem_decisao
+confianca_ml
+motivo_fallback
+latencia_ml_ms
+```
+
+### Bot C — Telegram, Email e relatório
+
+O Telegram é o canal principal. Quando ele falha, o alerta é enviado por
+Email. Eventos `ERRO` e `CRITICO` são enviados aos dois canais. Se ambos
+falharem, o alerta é registrado como `ALERTA_LOCAL` em `logs/execucao.log`.
+
+Configure somente no `.env`, nunca no código:
+
+```env
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_FROM=
+ALERT_EMAIL_TO=
+SMTP_USE_TLS=true
+```
+
+Para contas Gmail, use uma senha de aplicativo no `SMTP_PASSWORD`; não use a
+senha normal da conta. Tokens e senhas não aparecem nos logs.
+
+O Bot C gera em `logs/`:
+
+```text
+pipeline_<pipeline_id>_relatorio.xlsx
+pipeline_<pipeline_id>_bot_c.json
+```
+
+O Excel contém as abas `Resumo` e `Resultados`, incluindo
+`origem_decisao` e `confianca_ml` para auditoria.
+
+### Execução local completa do pipeline
+
+Execute na ordem abaixo, sem criar tarefas no Maestro:
+
+```powershell
+$env:MAESTRO_ENABLED='false'
+$env:ML_ENABLED='true'
+
+python orchestrator.py
+python bot_conferencia_ml.py
+python bot_relatorio_alertas.py
+```
+
+### Simulação dos cenários de crise
+
+ML fora do ar:
+
+```powershell
+$env:ML_DIVERGENCIA_FORCE_ERROR='true'
+python bot_conferencia_ml.py
+python bot_relatorio_alertas.py
+```
+
+ML acima do timeout:
+
+```powershell
+$env:ML_DIVERGENCIA_TIMEOUT_SECONDS='0.1'
+$env:ML_DIVERGENCIA_MOCK_DELAY_SECONDS='1'
+python bot_conferencia_ml.py
+python bot_relatorio_alertas.py
+```
+
+ML com baixa confiança:
+
+```powershell
+$env:ML_DIVERGENCIA_FORCE_CONFIDENCE='0.50'
+python bot_conferencia_ml.py
+python bot_relatorio_alertas.py
+```
+
+Base de referência indisponível:
+
+```powershell
+$env:ARQUIVO_BASE_REFERENCIA='dados_entrada/base_indisponivel.xlsx'
+python orchestrator.py
+python bot_conferencia_ml.py
+python bot_relatorio_alertas.py
+```
+
+Para testar o fallback Telegram para Email, informe um token inválido no
+ambiente de homologação e mantenha a configuração SMTP válida. Não faça esse
+teste com destinatários de produção.
+
+Remova as variáveis de sabotagem antes da execução normal:
+
+```powershell
+Remove-Item Env:ML_DIVERGENCIA_FORCE_ERROR -ErrorAction SilentlyContinue
+Remove-Item Env:ML_DIVERGENCIA_MOCK_DELAY_SECONDS -ErrorAction SilentlyContinue
+Remove-Item Env:ML_DIVERGENCIA_FORCE_CONFIDENCE -ErrorAction SilentlyContinue
+Remove-Item Env:ARQUIVO_BASE_REFERENCIA -ErrorAction SilentlyContinue
+```
+
+Testes específicos do pipeline S10-B:
+
+```powershell
+python -m pytest tests/test_orchestrator.py tests/test_pipeline_bots.py tests/unit/test_resilience.py tests/unit/test_wait_for_predecessor.py tests/unit/test_classificador_divergencia.py tests/unit/test_alertas_pipeline.py -q
+```
 
 ## Testes
 
