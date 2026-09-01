@@ -142,6 +142,9 @@ class ClassificadorDivergencia:
             (("faltou", "peca", "componente", "ausente"), "falta_componente", 0.92),
             (("duplic" ,), "registro_duplicado", 0.96),
             (("doca", "avaria", "transporte", "danific"), "problema_operacional", 0.88),
+            (("falha no painel", "painel de controle"), "falha_componente", 0.91),
+            (("uso interno", "aprovado parcial"), "status_nao_padronizado", 0.89),
+            (("aguardando laudo", "laudo tecnico"), "pendencia_tecnica", 0.90),
         ]
         for keywords, cause, confidence in patterns:
             if any(keyword in normalized for keyword in keywords):

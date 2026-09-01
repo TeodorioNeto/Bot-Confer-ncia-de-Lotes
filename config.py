@@ -83,3 +83,58 @@ DEAD_LETTER_FILE = BASE_DIR / os.getenv(
     "DEAD_LETTER_FILE", "logs/dead_letter_pipeline.jsonl"
 )
 DATA_OUTPUT_DIR = BASE_DIR / os.getenv("DATA_OUTPUT_DIR", "data/output")
+
+# Pipeline Capstone. Mantem o fluxo S10-B disponivel e habilita a cadeia
+# expandida apenas quando solicitado explicitamente.
+CAPSTONE_ENABLED = os.getenv("CAPSTONE_ENABLED", "false").lower() == "true"
+ORCHESTRATOR_MODE = os.getenv("ORCHESTRATOR_MODE", "shadow").strip().lower()
+CAPSTONE_BUSINESS_KEY = os.getenv("CAPSTONE_BUSINESS_KEY", "").strip()
+CAPSTONE_STATE_DIR = BASE_DIR / os.getenv(
+    "CAPSTONE_STATE_DIR", "data/capstone_state"
+)
+CAPSTONE_DESKTOP_MODE = os.getenv(
+    "CAPSTONE_DESKTOP_MODE", "simulated"
+).strip().lower()
+CAPSTONE_WEB_MODE = os.getenv("CAPSTONE_WEB_MODE", "simulated").strip().lower()
+CAPSTONE_DESKTOP_RETRY_ATTEMPTS = int(
+    os.getenv("CAPSTONE_DESKTOP_RETRY_ATTEMPTS", "3")
+)
+CAPSTONE_WEB_RETRY_ATTEMPTS = int(
+    os.getenv("CAPSTONE_WEB_RETRY_ATTEMPTS", "3")
+)
+CAPSTONE_RETRY_DELAY_SECONDS = float(
+    os.getenv("CAPSTONE_RETRY_DELAY_SECONDS", "1")
+)
+CAPSTONE_DESKTOP_STARTUP_SECONDS = float(
+    os.getenv("CAPSTONE_DESKTOP_STARTUP_SECONDS", "2")
+)
+CAPSTONE_DESKTOP_EXPORT_TIMEOUT_SECONDS = float(
+    os.getenv("CAPSTONE_DESKTOP_EXPORT_TIMEOUT_SECONDS", "20")
+)
+
+PIPELINE_BOT_DESKTOP_LABEL = os.getenv(
+    "PIPELINE_BOT_DESKTOP_LABEL", "teodorio-coleta-desktop-v1"
+)
+PIPELINE_BOT_CAPSTONE_LABEL = os.getenv(
+    "PIPELINE_BOT_CAPSTONE_LABEL", "teodorio-orquestrador-capstone-v1"
+)
+PIPELINE_BOT_WEB_LABEL = os.getenv(
+    "PIPELINE_BOT_WEB_LABEL", "teodorio-coleta-web-v1"
+)
+PIPELINE_BOT_CONSOLIDACAO_LABEL = os.getenv(
+    "PIPELINE_BOT_CONSOLIDACAO_LABEL", "teodorio-consolidacao-v1"
+)
+PIPELINE_BOT_ML_LABEL = os.getenv(
+    "PIPELINE_BOT_ML_LABEL", "teodorio-classificador-ml-v1"
+)
+PIPELINE_BOT_RELATORIO_LABEL = os.getenv(
+    "PIPELINE_BOT_RELATORIO_LABEL", PIPELINE_BOT_C_LABEL
+)
+
+PIPELINE_DESKTOP_PRIORITY = int(os.getenv("PIPELINE_DESKTOP_PRIORITY", "9"))
+PIPELINE_WEB_PRIORITY = int(os.getenv("PIPELINE_WEB_PRIORITY", "7"))
+PIPELINE_CONSOLIDACAO_PRIORITY = int(
+    os.getenv("PIPELINE_CONSOLIDACAO_PRIORITY", "8")
+)
+PIPELINE_ML_PRIORITY = int(os.getenv("PIPELINE_ML_PRIORITY", "5"))
+PIPELINE_RELATORIO_PRIORITY = int(os.getenv("PIPELINE_RELATORIO_PRIORITY", "6"))

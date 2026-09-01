@@ -20,6 +20,16 @@ COLUMNS = [
     "confianca_ml",
     "motivo_fallback",
     "latencia_ml_ms",
+    "produto",
+    "status_original",
+    "status_normalizado",
+    "avisos",
+    "estoque_encontrado",
+    "produto_estoque",
+    "quantidade_estoque",
+    "quantidade_pedido",
+    "desktop_disponivel",
+    "web_disponivel",
 ]
 
 
@@ -46,6 +56,16 @@ def generate_pipeline_report(results: list[dict], output_path) -> Path:
         (
             "Pipeline operando sem ML",
             "SIM" if divergences and len(fallbacks) == len(divergences) else "NAO",
+        ),
+        (
+            "Pipeline degradado",
+            "SIM"
+            if any(
+                result.get("desktop_disponivel") is False
+                or result.get("web_disponivel") is False
+                for result in results
+            )
+            else "NAO",
         ),
     ]
     for row in summary_rows:

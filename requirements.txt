@@ -3,6 +3,7 @@ openpyxl
 pytest
 pytest-playwright
 botcity-maestro-sdk
+botcity-framework-core
 python-dotenv
 python-json-logger>=3.3,<4
 playwright

@@ -165,6 +165,104 @@ Antes de iniciar o bot, crie a pasta `dados_entrada` e coloque nela o arquivo:
 dados_entrada/inspecao_lotes_dia.xlsx
 ```
 
+## Pipeline Capstone sem Smart Office
+
+O modo Capstone preserva o fluxo anterior e adiciona uma cadeia com seis
+papeis independentes, executavel no BotCity Maestro atual ou localmente:
+
+```text
+teodorio-orquestrador-capstone-v1
+  -> teodorio-coleta-desktop-v1
+  -> teodorio-coleta-web-v1
+  -> teodorio-consolidacao-v1
+  -> teodorio-classificador-ml-v1
+  -> teodorio-relatorio-alertas-v1
+```
+
+Responsabilidades:
+
+- `capstone_orchestrator.py`: idempotencia, modo de migracao, DataPool e
+  disparo da cadeia;
+- `bot_coleta_desktop.py`: coleta da aplicacao desktop simulada, mutex de
+  sessao grafica, retry e evidencia;
+- `bot_coleta_web.py`: coleta do portal web com modo simulado ou navegador;
+- `bot_consolidacao.py`: cruzamento das fontes e decisao deterministica;
+- `bot_classificador_ml.py`: enriquecimento das divergencias, sem alterar a
+  decisao de negocio;
+- `bot_relatorio_alertas.py`: Excel, JSON, artefatos e alertas.
+
+### Modos de coexistencia
+
+Configure `ORCHESTRATOR_MODE`:
+
+- `legado`: o pipeline novo nao inicia;
+- `shadow`: o pipeline novo processa e gera evidencias, mas nao envia uma
+  notificacao oficial;
+- `novo`: o pipeline novo assume a saida oficial e impede a repeticao da mesma
+  `business_key`.
+
+O lock em `data/capstone_state/desktop_session.lock` impede que duas automacoes
+usem a mesma sessao grafica ao mesmo tempo. A idempotencia local demonstra o
+cutover e o rollback; em producao com varios Runners, esse estado deve migrar
+para um armazenamento central compartilhado.
+
+### Execucao local segura
+
+Copie `.env.example` para `.env`, mantenha `MAESTRO_ENABLED=false` e use
+inicialmente os coletores simulados:
+
+```env
+CAPSTONE_ENABLED=true
+ORCHESTRATOR_MODE=shadow
+CAPSTONE_DESKTOP_MODE=simulated
+CAPSTONE_WEB_MODE=simulated
+ML_ENABLED=true
+```
+
+Execute:
+
+```powershell
+python capstone_pipeline.py
+```
+
+O modo local usa explicitamente um Maestro desconectado, mesmo que existam
+credenciais no `.env`, evitando a criacao acidental de tarefas externas.
+
+Para demonstrar a aplicacao desktop com interacao de tela em um Windows com
+sessao grafica:
+
+```powershell
+$env:CAPSTONE_DESKTOP_MODE = "visual"
+python bot_coleta_desktop.py
+```
+
+A aplicacao `desktop_app.py` recebe digitacao, consulta pelo teclado, exporta a
+grade com `Ctrl+E` e permite que o `DesktopBot` gere a screenshot. Para executar
+o portal real, configure `CAPSTONE_WEB_MODE=visual` e as variaveis da automacao
+Selenium/Playwright descritas anteriormente.
+
+### Pacotes do Maestro
+
+Gere os seis arquivos ZIP:
+
+```powershell
+.\build_capstone_packages.ps1
+```
+
+Os pacotes ficam em `dist/capstone/`. O script nao inclui `.env`; segredos e
+configuracoes de ambiente devem ser informados no Runner, no Maestro ou no
+Credentials Vault.
+
+### Testes do Capstone
+
+```powershell
+python -m pytest tests/test_capstone_pipeline.py -q
+python -m pytest -q
+```
+
+Os testes cobrem as duas fontes, regras deterministicas, ML nao critico,
+idempotencia, lock da sessao desktop e a cadeia local completa com seis etapas.
+
 O caminho pode ser alterado pela variável `ARQUIVO_INSPECAO`. A planilha deve possuir, no mínimo, as abas:
 
 - `Inspecao_14_06_2026`, com os registros de inspeção;

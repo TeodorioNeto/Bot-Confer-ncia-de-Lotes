@@ -28,6 +28,7 @@ from config import (
 from src.alertas import SistemaAlertas
 from src.logger import setup_logger
 from src.relatorio_pipeline import generate_pipeline_report
+from src.pipeline_runtime import LOCAL_EXECUTION, LocalMaestro
 from wait_for_predecessor import predecessor_task_id_from_parameters, wait_for_predecessor
 
 
@@ -37,31 +38,59 @@ logger = setup_logger(__name__)
 def executar_bot_c(
     maestro=None,
     *,
+    parameters=None,
     alert_system=None,
     report_generator=generate_pipeline_report,
     wait_predecessor=wait_for_predecessor,
 ) -> dict:
     maestro, connected = _get_maestro(maestro)
     task_id = getattr(maestro, "task_id", None)
-    current_task = maestro.get_task(task_id) if connected and task_id else None
-    parameters = dict(getattr(current_task, "parameters", None) or {})
-    if not connected and not parameters.get("pipeline_results"):
-        parameters.update(_load_latest_bot_b_evidence())
-    pipeline_id = str(parameters.get("pipeline_id") or uuid4())
+    if parameters is None:
+        current_task = maestro.get_task(task_id) if connected and task_id else None
+        task_parameters = dict(getattr(current_task, "parameters", None) or {})
+    else:
+        task_parameters = dict(parameters)
+    if not connected and not task_parameters.get("pipeline_results"):
+        task_parameters.update(_load_latest_bot_b_evidence())
+    pipeline_id = str(task_parameters.get("pipeline_id") or uuid4())
 
-    predecessor_id = predecessor_task_id_from_parameters(parameters)
+    predecessor_id = predecessor_task_id_from_parameters(task_parameters)
     if connected and predecessor_id:
         wait_predecessor(maestro, predecessor_id)
 
-    results = list(parameters.get("pipeline_results") or [])
-    summary = dict(parameters.get("bot_b_summary") or _summarize(results))
+    results = list(task_parameters.get("pipeline_results") or [])
+    summary = dict(task_parameters.get("bot_b_summary") or _summarize(results))
     safe_id = "".join(char if char.isalnum() or char in "-_" else "_" for char in pipeline_id)
     report_path = LOGS_DIR / f"pipeline_{safe_id}_relatorio.xlsx"
     report_generator(results, report_path)
 
     alert_system = alert_system or _build_alert_system()
     alerts = []
-    if summary.get("pipeline_sem_ml"):
+    official_output = task_parameters.get("official_output", True)
+    if not official_output:
+        alerts.append(
+            {
+                "severidade": "INFO",
+                "canais_enviados": ["shadow_local"],
+                "canal_fallback": None,
+                "sucesso": True,
+            }
+        )
+    elif summary.get("pipeline_degradado"):
+        alerts.append(
+            alert_system.send(
+                severity="ERRO",
+                title="Pipeline operando em modo degradado",
+                message=(
+                    f"Pipeline {pipeline_id}: desktop_disponivel="
+                    f"{summary.get('desktop_disponivel')}, web_disponivel="
+                    f"{summary.get('web_disponivel')}."
+                ),
+                attachment=report_path,
+            ).to_dict()
+        )
+
+    if official_output and summary.get("pipeline_sem_ml"):
         alerts.append(
             alert_system.send(
                 severity="AVISO",
@@ -74,7 +103,9 @@ def executar_bot_c(
             ).to_dict()
         )
 
-    if summary.get("dead_letter", 0) or summary.get("pendentes_revisao", 0):
+    if official_output and (
+        summary.get("dead_letter", 0) or summary.get("pendentes_revisao", 0)
+    ):
         alerts.append(
             alert_system.send(
                 severity="ERRO",
@@ -87,7 +118,7 @@ def executar_bot_c(
             ).to_dict()
         )
 
-    if not alerts:
+    if official_output and not alerts:
         alerts.append(
             alert_system.send(
                 severity="INFO",
@@ -99,7 +130,7 @@ def executar_bot_c(
             ).to_dict()
         )
 
-    final_parameters = _append_chain(parameters, pipeline_id, task_id)
+    final_parameters = _append_chain(task_parameters, pipeline_id, task_id)
     evidence_json = LOGS_DIR / f"pipeline_{safe_id}_bot_c.json"
     evidence_json.write_text(
         json.dumps(
@@ -202,7 +233,7 @@ def _append_chain(parameters, pipeline_id, task_id):
 
 def _load_latest_bot_b_evidence() -> dict:
     candidates = sorted(
-        LOGS_DIR.glob("pipeline_*_bot_b.json"),
+        [*LOGS_DIR.glob("pipeline_*_ml.json"), *LOGS_DIR.glob("pipeline_*_bot_b.json")],
         key=lambda path: path.stat().st_mtime,
         reverse=True,
     )
@@ -218,6 +249,8 @@ def _load_latest_bot_b_evidence() -> dict:
 
 
 def _get_maestro(maestro):
+    if maestro is LOCAL_EXECUTION:
+        return LocalMaestro(), False
     if maestro is not None:
         return maestro, True
     sdk = BotMaestroSDK.from_sys_args()

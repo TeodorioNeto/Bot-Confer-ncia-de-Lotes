@@ -20,6 +20,16 @@ def test_mock_classifica_causa_a_partir_da_observacao():
     assert result.motivo_fallback is None
 
 
+def test_mock_reconhece_observacoes_da_planilha_capstone():
+    painel = build_classifier().classificar("Falha no painel de controle")
+    parcial = build_classifier().classificar("Aprovado apenas uso interno")
+
+    assert painel.causa_provavel == "falha_componente"
+    assert painel.origem_decisao == "ml"
+    assert parcial.causa_provavel == "status_nao_padronizado"
+    assert parcial.origem_decisao == "ml"
+
+
 def test_feature_flag_desliga_classificador_sem_chamar_predictor():
     calls = []
     classifier = build_classifier(
